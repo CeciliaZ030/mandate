@@ -1,0 +1,214 @@
+[
+ {
+  "type": "constructor",
+  "inputs": [
+   {
+    "name": "usdc_",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "allMandates",
+  "inputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "count",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "create",
+  "inputs": [
+   {
+    "name": "agent",
+    "type": "address",
+    "internalType": "address"
+   },
+   {
+    "name": "limits",
+    "type": "tuple",
+    "internalType": "struct MandateAccount.Limits",
+    "components": [
+     {
+      "name": "maxDeployed",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "maxDrawdownBps",
+      "type": "uint16",
+      "internalType": "uint16"
+     },
+     {
+      "name": "maxLossPerCallBps",
+      "type": "uint16",
+      "internalType": "uint16"
+     },
+     {
+      "name": "expiry",
+      "type": "uint64",
+      "internalType": "uint64"
+     }
+    ]
+   }
+  ],
+  "outputs": [
+   {
+    "name": "m",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "isMandate",
+  "inputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "mandatesOf",
+  "inputs": [
+   {
+    "name": "owner",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address[]",
+    "internalType": "address[]"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "mandatesRunBy",
+  "inputs": [
+   {
+    "name": "agent",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address[]",
+    "internalType": "address[]"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "usdc",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "event",
+  "name": "MandateCreated",
+  "inputs": [
+   {
+    "name": "owner",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "agent",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "mandate",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   },
+   {
+    "name": "limits",
+    "type": "tuple",
+    "indexed": false,
+    "internalType": "struct MandateAccount.Limits",
+    "components": [
+     {
+      "name": "maxDeployed",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "maxDrawdownBps",
+      "type": "uint16",
+      "internalType": "uint16"
+     },
+     {
+      "name": "maxLossPerCallBps",
+      "type": "uint16",
+      "internalType": "uint16"
+     },
+     {
+      "name": "expiry",
+      "type": "uint64",
+      "internalType": "uint64"
+     }
+    ]
+   }
+  ],
+  "anonymous": false
+ }
+]
