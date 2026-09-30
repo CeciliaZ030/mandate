@@ -84,6 +84,20 @@ contract MockVault {
         token.transfer(receiver, assets);
     }
 
+    function maxWithdraw(address owner) external view returns (uint256) {
+        return convertToAssets(balanceOf[owner]);
+    }
+
+    /// ERC-4626 withdraw: burns shares (rounded up) and sends exactly `assets`.
+    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares) {
+        require(msg.sender == owner, "owner");
+        uint256 ta = totalAssets();
+        shares = (assets * totalSupply + ta - 1) / ta;
+        balanceOf[owner] -= shares;
+        totalSupply -= shares;
+        token.transfer(receiver, assets);
+    }
+
     function transfer(address to, uint256 shares) external returns (bool) {
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;

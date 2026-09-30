@@ -11,12 +11,21 @@
 
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636?logo=solidity)
 ![Foundry](https://img.shields.io/badge/Foundry-tested-orange)
-![Tests](https://img.shields.io/badge/tests-23%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-23%20%2B%2011%20scenarios-brightgreen)
 ![Morpho](https://img.shields.io/badge/venue-Morpho%20ERC--4626-2470FF)
 
 </div>
 
 > Agents that move money today run on *trust me*: the limits live in the agent's own code, where the owner can't verify them and the agent can route around them. Mandate moves the limits on-chain. The agent operates the account; the contract decides what it is allowed to do.
+
+## Try it
+
+```bash
+git clone https://github.com/Makabeez/mandate && cd mandate
+make judge-demo     # no wallet, no RPC, no API key: 23 contract tests + 11 agent decision scenarios
+```
+
+For the full loop on a local chain (real contracts, the real agent process, a stub reviewer): `cd agent && npm install && cd .. && make e2e`.
 
 ## Why
 
@@ -53,6 +62,21 @@ Spending limits answer *"how much can the agent send?"* Mandate answers the ques
   MandateFactory ── deploys & indexes mandates (by owner, by agent) → leaderboard
 ```
 
+## Treasury agent
+
+`agent/` is the operator for one or many mandates: a cash sweep for a company treasury.
+
+- **Keeps payables covered.** It reads upcoming payments (`payables.json`) and holds enough idle USDC to cover everything due in the next 72h plus 10%, never less than a 10% reserve. A shortfall inside 24h is mandatory: the reviewer cannot veto it.
+- **Puts the rest to work** in the allowed ERC-4626 vault, within the venue cap and `maxDeployed`.
+- **Exits on risk** before the contract has to freeze: vault share price down more than 5 bps, drawdown past half the limit, or less than 24h to mandate expiry.
+- **The LLM reviews, it does not decide amounts.** The policy computes every candidate and amount; the reviewer (any OpenAI-compatible endpoint) picks one by id. An unknown choice is ignored and the policy default runs.
+- **Never trips its own wire.** Every call is simulated as `execute()` from the agent address first; if the mandate would return false, the transaction is not sent.
+- **Every decision is on-chain.** The full record (state, candidates, reviewer rationale, tx hashes) is hashed with keccak256 and posted via `note(tag, hash, uri)`. The dashboard re-hashes the served record and flags any mismatch.
+
+Payouts to vendors stay owner-signed: the agent can only move cash between the account and the vault. That separation of duties is the point.
+
+Deploy: [`docs/DEPLOY.md`](docs/DEPLOY.md). Dashboard: [`app/index.html`](app/index.html), one static file.
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -61,7 +85,8 @@ Spending limits answer *"how much can the agent send?"* Mandate answers the ques
 | Contracts | Solidity 0.8.30, Foundry, zero external deps |
 | Venue v0 | Morpho USDC vaults (ERC-4626) |
 | Valuation | Pluggable `IValuer` per venue (`ERC4626Valuer`, `BalanceValuer`) |
-| UI | Generated with Arc Studio, see [`STUDIO.md`](STUDIO.md) |
+| Agent | Node 20, viem, deterministic policy + OpenAI-compatible reviewer (LiteLLM) |
+| UI | Single static page (`app/`), viem in the browser, wallet via EIP-1193 |
 
 ## Flow
 

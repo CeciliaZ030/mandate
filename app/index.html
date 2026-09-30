@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mandate · bounded agent treasuries on Arc</title>
+<meta name="description" content="AI agents run these USDC treasuries on Arc under limits written into a smart contract. Break a limit and the call is undone, the account freezes, and the attempt stays on-chain.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#ECEFE7; --paper-2:#E2E7DC; --ink:#17233A; --ink-2:#4A5568; --rule:#A3AE9F; --rule-soft:#CBD3C6;
+  --green:#2E6A58; --green-soft:#CFE0D6; --stamp:#B3261E; --stamp-soft:#F2D7D3; --focus:#1F5FBF;
+  --serif:"Spectral",Georgia,serif; --sans:"Public Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#111821; --paper-2:#18212C; --ink:#DCE4D8; --ink-2:#9AA6A0; --rule:#3C4A48; --rule-soft:#26312F;
+  --green:#6FB39C; --green-soft:#1D3530; --stamp:#E3776A; --stamp-soft:#3A1F1D; --focus:#8AB4FF;
+}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.55 var(--sans);font-feature-settings:"tnum" 1,"lnum" 1}
+a{color:inherit;text-decoration-color:var(--rule);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--ink)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;border-bottom:1px solid var(--rule)}
+.brand{font:600 20px/1 var(--serif);letter-spacing:.01em;display:flex;align-items:center;gap:10px}
+.brand svg{flex:none}
+button,.btn{font:600 14px/1 var(--sans);color:var(--ink);background:transparent;border:1.5px solid var(--ink);padding:10px 14px;border-radius:3px;cursor:pointer}
+button.primary{background:var(--ink);color:var(--paper)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.danger{border-color:var(--stamp);color:var(--stamp)}
+.muted{color:var(--ink-2)}
+.num{font-family:var(--serif);font-variant-numeric:tabular-nums lining-nums}
+
+/* hero */
+.hero{padding:56px 0 28px}
+.hero h1{font:500 clamp(34px,5.4vw,60px)/1.04 var(--serif);letter-spacing:-.015em;margin:0 0 18px;max-width:21ch}
+.hero p.lede{font-size:18px;max-width:62ch;margin:0;color:var(--ink-2)}
+.instrument{margin:40px 0 8px;border:1.5px solid var(--ink);background:var(--paper-2);position:relative;overflow:hidden}
+.instrument .guilloche{position:absolute;inset:0;opacity:.55;pointer-events:none}
+.instrument .inner{position:relative;padding:22px 22px 18px}
+.inst-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px 24px;align-items:baseline}
+.inst-head .who{font:500 15px/1.4 var(--sans)}
+.inst-head .who a{font-weight:600}
+.big{font:500 clamp(40px,7vw,72px)/1 var(--serif);letter-spacing:-.02em}
+.big small{font:500 18px/1 var(--sans);letter-spacing:0;margin-left:6px;color:var(--ink-2)}
+.ruler{margin:26px 0 10px;position:relative;height:74px}
+.ruler .track{position:absolute;left:0;right:0;top:30px;height:14px;border:1.5px solid var(--ink);background:repeating-linear-gradient(90deg,transparent 0 9px,var(--rule-soft) 9px 10px)}
+.ruler .zone{position:absolute;top:30px;height:14px;background:var(--green-soft);border-right:0}
+.ruler .freeze{position:absolute;top:18px;bottom:6px;width:0;border-left:2px dashed var(--stamp)}
+.ruler .freeze span,.ruler .hwm span{position:absolute;top:-18px;white-space:nowrap;font:600 12px/1 var(--sans)}
+.ruler .freeze span{left:-2px;color:var(--stamp)}
+.ruler .hwm{position:absolute;right:0;top:18px;bottom:6px;border-right:2px solid var(--ink)}
+.ruler .hwm span{right:-2px}
+.ruler .marker{position:absolute;top:24px;width:0;transition:left 1.4s cubic-bezier(.2,.8,.2,1)}
+.ruler .marker::before{content:"";position:absolute;left:-9px;top:0;border:9px solid transparent;border-top:13px solid var(--green);border-bottom:0}
+.ruler .marker span{position:absolute;top:30px;left:50%;transform:translateX(-50%);white-space:nowrap;font:600 12px/1 var(--sans);color:var(--green)}
+.ruler .marker.edge-r span{left:auto;right:-4px;transform:none}
+.ruler .marker.edge-l span{left:-4px;transform:none}
+@media (prefers-reduced-motion:reduce){.ruler .marker{transition:none}}
+.split{display:flex;height:8px;border:1px solid var(--ink);margin-top:14px}
+.split i{display:block;height:100%}
+.split .dep{background:var(--green)} .split .idl{background:transparent}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px 24px;margin-top:16px;font-size:14px}
+.facts b{display:block;font:500 20px/1.2 var(--serif);margin-top:2px}
+.proof{margin:14px 0 0;font-size:15px}
+.proof .blocked{color:var(--stamp);font-weight:600}
+
+/* sections */
+section{padding:44px 0;border-top:1px solid var(--rule)}
+h2{font:500 30px/1.15 var(--serif);margin:0 0 6px;letter-spacing:-.01em}
+h3{font:600 17px/1.3 var(--sans);margin:0 0 10px}
+.sub{margin:0 0 22px;color:var(--ink-2);max-width:66ch}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{font:600 13px/1.3 var(--sans);text-align:left;color:var(--ink-2);padding:8px 10px;border-bottom:1.5px solid var(--ink)}
+td{padding:11px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+td.r,th.r{text-align:right}
+tr.pick{cursor:pointer} tr.pick:hover td{background:var(--paper-2)} tr.sel td{background:var(--paper-2)}
+.status{display:inline-block;font:600 12px/1 var(--sans);padding:5px 8px;border:1.5px solid currentColor;border-radius:2px}
+.status.ok{color:var(--green)} .status.frozen{color:var(--stamp);transform:rotate(-2deg)} .status.exp{color:var(--ink-2)}
+.scroll{overflow-x:auto}
+
+.detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:36px}
+@media (max-width:820px){.detail{grid-template-columns:1fr}}
+dl.terms{margin:0;display:grid;grid-template-columns:auto 1fr;gap:9px 18px;font-size:15px}
+dl.terms dt{color:var(--ink-2)} dl.terms dd{margin:0;font-weight:500}
+.signed{margin-top:18px;padding-top:12px;border-top:1px solid var(--ink);font:italic 400 15px/1.4 var(--serif);color:var(--ink-2)}
+ol.ledger{list-style:none;margin:0;padding:0}
+ol.ledger li{display:grid;grid-template-columns:92px 1fr auto;gap:4px 14px;padding:11px 0;border-bottom:1px solid var(--rule-soft);font-size:14.5px}
+ol.ledger .t{color:var(--ink-2);font-size:13px}
+ol.ledger .what b{font-weight:600}
+ol.ledger .amt{font-family:var(--serif);font-size:15px;white-space:nowrap}
+ol.ledger li.breach{background:linear-gradient(90deg,var(--stamp-soft),transparent 70%)}
+ol.ledger li.breach .what b{color:var(--stamp)}
+ol.ledger .why{grid-column:2 / 4;color:var(--ink-2);font-size:14px;font-style:italic;font-family:var(--serif)}
+ol.ledger button.linkish{border:0;padding:0;background:none;font:inherit;font-size:13px;text-decoration:underline;text-decoration-color:var(--rule);cursor:pointer;color:var(--ink-2)}
+.rec{grid-column:2 / 4;background:var(--paper-2);border-left:3px solid var(--green);padding:10px 12px;font-size:14px;margin-top:4px}
+.rec p{margin:0 0 6px}
+
+form.create{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px 22px;align-items:end}
+label{display:block;font:600 14px/1.3 var(--sans)}
+label .hint{display:block;font-weight:400;color:var(--ink-2);font-size:13px;margin-top:2px}
+input,select{width:100%;margin-top:7px;font:500 16px/1.2 var(--sans);color:var(--ink);background:var(--paper);border:1.5px solid var(--ink);border-radius:3px;padding:10px 11px}
+ol.steps{margin:22px 0 0;padding-left:22px;font-size:15px}
+ol.steps li{padding:3px 0;color:var(--ink-2)} ol.steps li.done{color:var(--green)} ol.steps li.now{color:var(--ink);font-weight:600} ol.steps li.err{color:var(--stamp)}
+.console{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:18px}
+.console input{width:140px}
+.note{font-size:14px;color:var(--ink-2);margin-top:10px}
+.err{color:var(--stamp)}
+footer{padding:28px 0 60px;border-top:1px solid var(--rule);font-size:14px;color:var(--ink-2)}
+footer .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 30px}
+code{font:500 13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1.5" y="1.5" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/><circle cx="13" cy="13" r="4" fill="var(--green)"/></svg>
+      Mandate
+    </div>
+    <button id="connect">Connect wallet</button>
+  </header>
+
+  <div class="hero">
+    <h1>An AI agent runs this treasury. It can't take the money.</h1>
+    <p class="lede">Each account below is operated by an agent under limits written into an Arc smart contract: where money may go, how much it may lose, when it must stop. Break a limit and the call is undone, the account freezes, and the attempt stays on-chain for anyone to read.</p>
+
+    <div class="instrument" aria-live="polite">
+      <svg class="guilloche" id="guilloche" aria-hidden="true"></svg>
+      <div class="inner" id="hero">
+        <p class="muted">Reading the live mandate from Arc…</p>
+      </div>
+    </div>
+  </div>
+
+  <section id="mandates">
+    <h2>Accounts under mandate</h2>
+    <p class="sub">Every account created through the factory on Arc mainnet. Frozen accounts stay listed: a blocked attempt is part of the record.</p>
+    <div class="scroll"><table id="board"><thead><tr><th>Account</th><th>Agent</th><th class="r">Balance (USDC)</th><th class="r">Return</th><th class="r">Drawdown</th><th class="r">Blocked attempts</th><th>Status</th></tr></thead><tbody><tr><td colspan="7" class="muted">Loading…</td></tr></tbody></table></div>
+  </section>
+
+  <section id="detail" hidden>
+    <div class="detail">
+      <div>
+        <h2 id="d-title">Account</h2>
+        <p class="sub" id="d-sub"></p>
+        <h3>Terms of the mandate</h3>
+        <dl class="terms" id="d-terms"></dl>
+        <div class="signed" id="d-signed"></div>
+        <div id="owner-console" hidden>
+          <h3 style="margin-top:28px">Owner controls</h3>
+          <p class="note">Only the owner's wallet can do this. Withdrawals work even when the account is frozen.</p>
+          <div class="console">
+            <label>Amount (USDC)<input id="oc-amt" type="number" min="0" step="0.01" value="1"></label>
+            <button id="oc-deposit">Add funds</button>
+            <button id="oc-withdraw">Withdraw idle</button>
+            <button id="oc-exit">Pull everything from the vault</button>
+            <button id="oc-freeze" class="danger">Freeze</button>
+            <button id="oc-unfreeze">Unfreeze</button>
+          </div>
+          <p class="note" id="oc-msg" role="status"></p>
+        </div>
+      </div>
+      <div>
+        <h3>Ledger</h3>
+        <p class="note" style="margin-top:-4px">Newest first. Agent decisions link to the full record whose hash is stored on-chain.</p>
+        <ol class="ledger" id="d-ledger"></ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="create">
+    <h2>Put an account under mandate</h2>
+    <p class="sub">Your wallet creates and owns the account. The agent can move money only into the Galaxy USDC vault on Morpho and back, within the limits you set here. You can withdraw at any time.</p>
+    <form class="create" id="create-form">
+      <label>Deposit<span class="hint">USDC from your wallet on Arc</span><input id="c-amt" type="number" min="1" step="0.01" value="5" required></label>
+      <label>Maximum drawdown<span class="hint">The account freezes past this loss</span>
+        <select id="c-dd"><option value="100">1%</option><option value="300">3%</option><option value="500" selected>5%</option></select></label>
+      <label>Duration<span class="hint">The agent loses all rights after this</span>
+        <select id="c-days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label>
+      <label>Agent<span class="hint">Leave as is to use the hosted treasury agent</span><input id="c-agent" required></label>
+      <div><button class="primary" id="c-go" type="submit">Create the mandate</button></div>
+    </form>
+    <ol class="steps" id="c-steps" hidden></ol>
+    <p class="note" id="c-msg" role="status"></p>
+  </section>
+
+  <footer>
+    <div class="cols">
+      <div>Contracts on Arc mainnet<br>Factory <a id="f-factory" target="_blank" rel="noopener"><code></code></a><br>Agent API <span id="f-api"></span></div>
+      <div>Source, tests and the offline judge demo: <a href="https://github.com/Makabeez/mandate" target="_blank" rel="noopener">github.com/Makabeez/mandate</a>. Unaudited software; keep amounts small.</div>
+    </div>
+  </footer>
+</div>
+
+<script type="module">
+import { createPublicClient, createWalletClient, custom, http, parseAbi, formatUnits, parseUnits, hexToString, encodeFunctionData, decodeEventLog } from "https://cdn.jsdelivr.net/npm/viem@2.21.54/+esm";
+
+// ── configuration (edit for your deployment) ──
+const CFG = {
+  chainId: 5042,
+  rpc: "https://rpc.mainnet.arc.io",
+  api: new URLSearchParams(location.search).get("api") || "https://mandate.baserep.xyz",
+  explorer: "https://explorer.arc.io",
+  factory: "0xb3F362850E04aD6e9147698Cc1EdbcB8891f307e",
+  featured: "0xEa08f2195ae9f29079a4cb6aFB05238949576d57",
+  usdc: "0x3600000000000000000000000000000000000000",
+  vault: "0x8E357432CC12ff425c36432F312968aEb16112AF",
+  vaultName: "Galaxy USDC (Morpho)",
+  valuer: "0xd4e895ACf808bB215b6DE8eC84F4b9f974fd0b61",
+  hostedAgent: "0x45282E682C2cfb4e2AF892105a385cC33e88fB28",
+  fromBlock: 23603500n,
+};
+// local testing: ?rpc=…&chain=…&factory=…&featured=…&vault=…&usdc=…&valuer=…&from=…
+{ const q = new URLSearchParams(location.search);
+  for (const k of ["rpc", "factory", "featured", "vault", "usdc", "valuer", "hostedAgent"]) if (q.get(k)) CFG[k] = q.get(k);
+  if (q.get("chain")) CFG.chainId = Number(q.get("chain"));
+  if (q.get("from")) CFG.fromBlock = BigInt(q.get("from")); }
+
+const MANDATE = parseAbi([
+  "function owner() view returns (address)", "function agent() view returns (address)", "function frozen() view returns (bool)",
+  "function highWaterMark() view returns (uint256)", "function nav() view returns (uint256)", "function deployed() view returns (uint256)",
+  "function drawdownFloor() view returns (uint256)", "function venueList() view returns (address[])",
+  "function limits() view returns (uint128 maxDeployed, uint16 maxDrawdownBps, uint16 maxLossPerCallBps, uint64 expiry)",
+  "function venues(address) view returns (bool active, uint128 cap, address valuer)",
+  "function deposit(uint256)", "function withdraw(uint256,address)", "function freeze()", "function unfreeze()",
+  "function ownerExecute(address,uint256,bytes) returns (bytes)",
+  "function setVenue(address,bool,uint128,address)", "function setRule(address,bytes4,bool,uint8)",
+  "event Executed(address indexed target, bytes4 indexed selector, uint256 navBefore, uint256 navAfter)",
+  "event CallReverted(address indexed target, bytes4 indexed selector, bytes returnData)",
+  "event Breach(bytes32 indexed reason, address indexed target, bytes4 selector)",
+  "event Frozen(bytes32 indexed reason)", "event Unfrozen(uint256 nav)",
+  "event Checkpoint(uint256 nav, uint256 highWaterMark, uint256 deployed)",
+  "event Note(bytes32 indexed tag, bytes32 contentHash, string uri)",
+  "event Deposited(uint256 amount, uint256 highWaterMark)", "event Withdrawn(address indexed to, uint256 amount, uint256 highWaterMark)",
+  "event AgentSet(address indexed agent)",
+]);
+const FACTORY = parseAbi([
+  "function count() view returns (uint256)", "function allMandates(uint256) view returns (address)",
+  "function create(address agent, (uint128 maxDeployed, uint16 maxDrawdownBps, uint16 maxLossPerCallBps, uint64 expiry) limits) returns (address)",
+  "event MandateCreated(address indexed owner, address indexed agent, address mandate, (uint128 maxDeployed, uint16 maxDrawdownBps, uint16 maxLossPerCallBps, uint64 expiry) limits)",
+]);
+const ERC20 = parseAbi(["function approve(address,uint256) returns (bool)", "function balanceOf(address) view returns (uint256)", "function allowance(address,address) view returns (uint256)"]);
+const VAULT = parseAbi(["function balanceOf(address) view returns (uint256)", "function convertToAssets(uint256) view returns (uint256)", "function redeem(uint256,address,address) returns (uint256)"]);
+
+const chain = { id: CFG.chainId, name: "Arc", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: { default: { http: [CFG.rpc] } }, blockExplorers: { default: { name: "Arc Explorer", url: CFG.explorer } } };
+const $ = (s) => document.querySelector(s);
+const usd = (x, d = 2) => Number(formatUnits(x ?? 0n, 6)).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: 6 });
+const short = (a) => a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
+const txLink = (h, text) => `<a href="${CFG.explorer}/tx/${h}" target="_blank" rel="noopener">${text}</a>`;
+const addrLink = (a, text = short(a)) => `<a href="${CFG.explorer}/address/${a}" target="_blank" rel="noopener">${text}</a>`;
+const WHY = {
+  BAD_ARG: "the agent tried to send vault shares or cash to an address other than the account",
+  NOT_ALLOWED: "the agent called a contract or function outside the mandate",
+  BAD_APPROVE: "the agent tried to approve spending outside the allowed vault or above its cap",
+  LOSS_PER_CALL: "a single call would have lost more than the mandate allows",
+  DRAWDOWN: "the balance fell past the freeze line",
+  VENUE_CAP: "the call would have put more in the vault than allowed",
+  DEPLOYED_CAP: "the call would have deployed more in total than allowed",
+  OWNER: "the owner froze the account",
+};
+const b32 = (h) => { try { return hexToString(h, { size: 32 }).replace(/\0+$/, ""); } catch { return h; } };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ago = (ts) => { if (!ts) return ""; const d = new Date(ts * 1000); return d.toLocaleString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
+
+$("#f-factory").href = `${CFG.explorer}/address/${CFG.factory}`; $("#f-factory code").textContent = CFG.factory; $("#f-api").textContent = CFG.api;
+$("#c-agent").value = CFG.hostedAgent;
+
+// ── public client: direct RPC, falling back to the agent's read-only relay (CORS) ──
+let pub;
+async function makePublic() {
+  for (const url of [CFG.rpc, `${CFG.api}/rpc`]) {
+    const c = createPublicClient({ chain, transport: http(url, { timeout: 15000 }) });
+    try { await c.getChainId(); return c; } catch {}
+  }
+  throw new Error("Arc RPC is unreachable from this browser");
+}
+
+async function readMandate(m) {
+  const r = (fn, args = []) => pub.readContract({ address: m, abi: MANDATE, functionName: fn, args });
+  const [owner, agent, frozen, hwm, nav, deployed, floor, lim, venues, idle] = await Promise.all([
+    r("owner"), r("agent"), r("frozen"), r("highWaterMark"), r("nav"), r("deployed"), r("drawdownFloor"), r("limits"), r("venueList"),
+    pub.readContract({ address: CFG.usdc, abi: ERC20, functionName: "balanceOf", args: [m] }),
+  ]);
+  const [maxDeployed, maxDrawdownBps, maxLossPerCallBps, expiry] = lim;
+  let venue = null;
+  if (venues.length) { const [active, cap] = await r("venues", [venues[0]]); venue = { address: venues[0], active, cap }; }
+  return { address: m, owner, agent, frozen, hwm, nav, deployed, floor, idle, venue, limits: { maxDeployed, maxDrawdownBps: Number(maxDrawdownBps), maxLossPerCallBps: Number(maxLossPerCallBps), expiry: Number(expiry) } };
+}
+
+// events: agent indexer first, chunked chain scan as fallback
+async function events(m) {
+  try {
+    const r = await fetch(`${CFG.api}/api/events?mandate=${m}`, { signal: AbortSignal.timeout(6000) });
+    if (r.ok) return (await r.json()).events;
+  } catch {}
+  const head = await pub.getBlockNumber();
+  const out = []; let from = CFG.fromBlock; const step = 50000n;
+  while (from <= head && out.length < 2000) {
+    const to = from + step - 1n > head ? head : from + step - 1n;
+    const logs = await pub.getLogs({ address: m, fromBlock: from, toBlock: to });
+    for (const l of logs) { try { const ev = decodeEventLog({ abi: MANDATE, data: l.data, topics: l.topics });
+      const args = Object.fromEntries(Object.entries(ev.args).map(([k, v]) => [k, typeof v === "bigint" ? v.toString() : v]));
+      if (args.reason) args.reasonText = b32(args.reason); if (args.tag) args.tagText = b32(args.tag);
+      out.push({ mandate: m, name: ev.eventName, args, block: Number(l.blockNumber), tx: l.transactionHash, logIndex: l.logIndex, ts: null });
+    } catch {} }
+    from = to + 1n;
+  }
+  return out;
+}
+
+const netDeposits = (evs) => evs.reduce((a, e) => e.name === "Deposited" ? a + BigInt(e.args.amount) : e.name === "Withdrawn" ? a - BigInt(e.args.amount) : a, 0n);
+const statusOf = (s) => s.frozen ? ["frozen", "Frozen"] : Date.now() / 1000 >= s.limits.expiry ? ["exp", "Expired"] : ["ok", "Active"];
+const ddBps = (s) => s.hwm > 0n && s.nav < s.hwm ? Number((s.hwm - s.nav) * 10000n / s.hwm) : 0;
+
+// ── hero: the headroom ruler ──
+function renderHero(s, evs) {
+  const span = s.hwm - s.floor; const pos = span > 0n ? Math.max(0, Math.min(1, Number(s.nav - s.floor) / Number(span))) : 1;
+  const breaches = evs.filter((e) => e.name === "Breach");
+  const lastBreach = breaches.at(-1);
+  const deployedPct = s.nav > 0n ? Number(s.deployed * 10000n / s.nav) / 100 : 0;
+  const [cls, label] = statusOf(s);
+  $("#hero").innerHTML = `
+    <div class="inst-head">
+      <div class="who">Live account ${addrLink(s.address)} on Arc mainnet<br><span class="muted">Operated by agent ${addrLink(s.agent)}, owned by ${addrLink(s.owner)}</span></div>
+      <span class="status ${cls}">${label}</span>
+    </div>
+    <div class="big num" style="margin-top:16px">${usd(s.nav, 6)}<small>USDC under mandate</small></div>
+    <div class="ruler" role="img" aria-label="Balance ${usd(s.nav, 6)} USDC. Freeze line ${usd(s.floor, 6)}. High-water mark ${usd(s.hwm, 6)}.">
+      <div class="track"></div>
+      <div class="zone" style="left:0;width:0%" id="zone"></div>
+      <div class="freeze" style="left:0"><span>Freeze line ${usd(s.floor)}</span></div>
+      <div class="hwm"><span>High-water mark ${usd(s.hwm)}</span></div>
+      <div class="marker" id="marker" style="left:0%"><span>Now ${usd(s.nav, 4)}</span></div>
+    </div>
+    <p class="muted" style="margin:4px 0 0;font-size:14px">The ruler spans the loss the mandate allows: ${(s.limits.maxDrawdownBps / 100).toFixed(1)}% below the high-water mark. If the balance ever reaches the dashed line, the account freezes.</p>
+    <div class="split" aria-hidden="true"><i class="dep" style="width:${deployedPct}%"></i><i class="idl"></i></div>
+    <div class="facts">
+      <div>Earning in ${esc(CFG.vaultName)}<b class="num">${usd(s.deployed, 4)}</b></div>
+      <div>Idle reserve<b class="num">${usd(s.idle, 4)}</b></div>
+      <div>Mandate ends<b class="num">${new Date(s.limits.expiry * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</b></div>
+      <div>Attempts blocked<b class="num">${breaches.length}</b></div>
+    </div>
+    ${lastBreach ? `<p class="proof">Latest blocked attempt: <span class="blocked">${esc(lastBreach.args.reasonText || "breach")}</span>: ${esc(WHY[lastBreach.args.reasonText] || "the call broke the mandate")}. The call was undone and nothing moved. ${txLink(lastBreach.tx, "See the transaction")}.</p>` : ""}`;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const mk = $("#marker"); mk.classList.toggle("edge-r", pos > 0.85); mk.classList.toggle("edge-l", pos < 0.15);
+    mk.style.left = `${pos * 100}%`; $("#zone").style.width = `${pos * 100}%`;
+  }));
+}
+
+function drawGuilloche() {
+  const svg = $("#guilloche"); const w = svg.clientWidth || 1000, h = svg.clientHeight || 360;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  let paths = "";
+  for (let k = 0; k < 14; k++) {
+    let d = ""; const amp = 18 + k * 2.2, ph = k * 0.45, fq = 0.012 + (k % 3) * 0.002;
+    for (let x = 0; x <= w; x += 6) { const y = h - 40 + Math.sin(x * fq + ph) * amp * Math.cos(x * 0.003 + k); d += `${x ? "L" : "M"}${x},${y.toFixed(1)}`; }
+    paths += `<path d="${d}" fill="none" stroke="var(--green)" stroke-opacity="${0.10 + (k % 4) * 0.03}" stroke-width="0.8"/>`;
+  }
+  svg.innerHTML = paths;
+}
+
+// ── board ──
+let states = [], selected = null;
+async function renderBoard() {
+  const n = await pub.readContract({ address: CFG.factory, abi: FACTORY, functionName: "count" });
+  const addrs = await Promise.all([...Array(Number(n)).keys()].map((i) => pub.readContract({ address: CFG.factory, abi: FACTORY, functionName: "allMandates", args: [BigInt(i)] })));
+  states = await Promise.all(addrs.map(async (a) => { const s = await readMandate(a); s.events = await events(a).catch(() => []); return s; }));
+  const tbody = $("#board tbody");
+  if (!states.length) { tbody.innerHTML = `<tr><td colspan="7">No accounts yet. Create the first one below.</td></tr>`; return; }
+  states.sort((a, b) => (b.nav > a.nav ? 1 : -1));
+  tbody.innerHTML = states.map((s) => {
+    const net = netDeposits(s.events); const ret = net > 0n ? Number((s.nav - net) * 1000000n / net) / 10000 : null;
+    const [cls, label] = statusOf(s); const br = s.events.filter((e) => e.name === "Breach").length;
+    return `<tr class="pick" tabindex="0" data-m="${s.address}"><td>${short(s.address)}</td><td>${s.agent.toLowerCase() === CFG.hostedAgent.toLowerCase() ? "Hosted agent" : short(s.agent)}</td>
+      <td class="r num">${usd(s.nav, 4)}</td><td class="r num">${ret === null ? "–" : (ret >= 0 ? "+" : "") + ret.toFixed(3) + "%"}</td>
+      <td class="r num">${(ddBps(s) / 100).toFixed(2)}%</td><td class="r num">${br}</td><td><span class="status ${cls}">${label}</span></td></tr>`;
+  }).join("");
+  tbody.querySelectorAll("tr.pick").forEach((tr) => {
+    const go = () => showDetail(tr.dataset.m);
+    tr.addEventListener("click", go); tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  });
+}
+
+// ── detail ──
+const ENTRY = {
+  Deposited: (a) => ["Owner added funds", `+${usd(BigInt(a.amount), 4)}`],
+  Withdrawn: (a) => ["Owner withdrew", `−${usd(BigInt(a.amount), 4)}`],
+  Executed: (a) => [`Agent ${({ "0x095ea7b3": "approved the vault", "0x6e553f65": "deposited into the vault", "0xb460af94": "withdrew from the vault", "0xba087652": "redeemed from the vault" })[a.selector] || "executed " + a.selector}`, `${usd(BigInt(a.navBefore), 4)} → ${usd(BigInt(a.navAfter), 4)}`],
+  Breach: (a) => [`Blocked: ${a.reasonText}`, "nothing moved"],
+  Frozen: (a) => [`Account frozen (${a.reasonText})`, ""],
+  Unfrozen: (a) => ["Owner reviewed and unfroze", `at ${usd(BigInt(a.nav), 4)}`],
+  CallReverted: () => ["Venue rejected the call", "no change"],
+  Checkpoint: (a) => ["Balance checkpoint", usd(BigInt(a.nav), 4)],
+  Note: (a) => [`Agent decision: ${({ SWEEP_IN: "move idle cash into yield", SWEEP_OUT: "raise cash for payables", EXIT_ALL: "exit the vault", HOLD: "hold", ALERT: "alert the owner" })[a.tagText] || a.tagText}`, ""],
+  AgentSet: (a) => [`Agent set to ${short(a.agent)}`, ""],
+};
+
+async function decisionAmounts(m) {
+  try { const r = await fetch(`${CFG.api}/api/decisions?mandate=${m}`, { signal: AbortSignal.timeout(5000) }); if (!r.ok) return {};
+    return Object.fromEntries((await r.json()).map((d) => [d.hash, d])); } catch { return {}; }
+}
+async function showDetail(m) {
+  selected = states.find((s) => s.address.toLowerCase() === m.toLowerCase()); if (!selected) return;
+  document.querySelectorAll("#board tr").forEach((tr) => tr.classList.toggle("sel", tr.dataset.m === selected.address));
+  const s = selected; $("#detail").hidden = false;
+  $("#d-title").textContent = `Account ${short(s.address)}`;
+  $("#d-sub").innerHTML = `${addrLink(s.address, s.address)}`;
+  const L = s.limits;
+  $("#d-terms").innerHTML = `
+    <dt>Owner</dt><dd>${addrLink(s.owner)}</dd><dt>Agent</dt><dd>${addrLink(s.agent)}</dd>
+    <dt>Allowed venue</dt><dd>${s.venue ? (s.venue.address.toLowerCase() === CFG.vault.toLowerCase() ? esc(CFG.vaultName) : short(s.venue.address)) : "none"}</dd>
+    <dt>In the venue at most</dt><dd class="num">${s.venue ? usd(s.venue.cap) : "–"} USDC</dd>
+    <dt>Deployed in total at most</dt><dd class="num">${usd(L.maxDeployed)} USDC</dd>
+    <dt>Maximum drawdown</dt><dd class="num">${(L.maxDrawdownBps / 100).toFixed(1)}% (freezes at ${usd(s.floor, 4)})</dd>
+    <dt>Maximum loss in one call</dt><dd class="num">${(L.maxLossPerCallBps / 100).toFixed(2)}%</dd>
+    <dt>Agent rights end</dt><dd class="num">${new Date(L.expiry * 1000).toLocaleString("en-GB")}</dd>`;
+  $("#d-signed").textContent = "Funds only ever move between this account and the allowed vault. Anything else is refused by the contract, not by the agent's own code.";
+  const dec = await decisionAmounts(s.address);
+  const evs = [...s.events].filter((e) => e.name !== "RuleSet" && e.name !== "LimitsSet" && e.name !== "VenueSet" && e.name !== "MandateCreated" && e.name !== "Checkpoint").reverse();
+  $("#d-ledger").innerHTML = evs.length ? evs.map((e, i) => {
+    let [what, amt] = (ENTRY[e.name] || (() => [e.name, ""]))(e.args);
+    const d = e.name === "Note" ? dec[e.args.contentHash] : null;
+    if (d && d.amount && d.amount !== "0") amt = usd(BigInt(d.amount), 4);
+    const recBtn = e.name === "Note" ? `<button class="linkish" data-uri="${esc(e.args.uri)}" data-hash="${e.args.contentHash}" data-i="${i}">Read the reasoning</button>` : "";
+    return `<li class="${e.name === "Breach" || e.name === "Frozen" ? "breach" : ""}"><span class="t">${ago(e.ts) || "block " + e.block}</span>
+      <span class="what"><b>${esc(what)}</b><br>${txLink(e.tx, "transaction")} ${recBtn}</span><span class="amt">${esc(amt)}</span><div class="rec" id="rec-${i}" hidden></div></li>`;
+  }).join("") : `<li><span></span><span class="muted">No activity yet.</span><span></span></li>`;
+  $("#d-ledger").querySelectorAll("button[data-uri]").forEach((b) => b.addEventListener("click", () => openRecord(b)));
+  updateOwnerConsole();
+  $("#detail").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+async function openRecord(btn) {
+  const box = $(`#rec-${btn.dataset.i}`);
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false; box.innerHTML = "Loading the decision record…";
+  try {
+    const raw = await (await fetch(btn.dataset.uri, { signal: AbortSignal.timeout(8000) })).text();
+    const { keccak256, toBytes } = await import("https://cdn.jsdelivr.net/npm/viem@2.21.54/+esm");
+    const ok = keccak256(toBytes(raw)) === btn.dataset.hash;
+    const r = JSON.parse(raw);
+    const c = r.chosen || {};
+    box.innerHTML = `<p><b>${esc(r.mode)}</b>: ${esc(c.why || "")}</p>
+      ${r.review?.rationale ? `<p>Reviewer (${esc(r.review.model)}): “${esc(r.review.rationale)}”${r.review.accepted === false ? " — not accepted, policy took over" : ""}</p>` : `<p class="muted">Decided by policy alone.</p>`}
+      <p class="muted">Options considered: ${(r.candidates || []).map((x) => `${esc(x.id)} ${x.amount && x.amount !== "0" ? usd(BigInt(x.amount), 4) : ""}`).join(", ")}</p>
+      <p class="${ok ? "" : "err"}">${ok ? "Hash matches the one stored on-chain." : "Warning: this record does not match the on-chain hash."}</p>`;
+  } catch (e) { box.innerHTML = `<span class="err">The record host did not answer (${esc(e.message)}). The hash on-chain is ${esc(btn.dataset.hash)}.</span>`; }
+}
+
+// ── wallet ──
+let wallet, me;
+async function ensureChain() {
+  const hex = "0x" + CFG.chainId.toString(16);
+  try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] }); }
+  catch (e) {
+    if (e.code !== 4902) throw e;
+    await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: hex, chainName: "Arc", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: [CFG.rpc], blockExplorerUrls: [CFG.explorer] }] });
+  }
+}
+async function connect() {
+  if (!window.ethereum) { $("#c-msg").textContent = "No browser wallet found. Install one that supports custom networks, then reload."; return false; }
+  [me] = await window.ethereum.request({ method: "eth_requestAccounts" });
+  await ensureChain();
+  wallet = createWalletClient({ chain, transport: custom(window.ethereum), account: me });
+  $("#connect").textContent = short(me);
+  updateOwnerConsole();
+  return true;
+}
+$("#connect").addEventListener("click", connect);
+
+async function send(address, abi, functionName, args = []) {
+  const hash = await wallet.writeContract({ address, abi, functionName, args });
+  const r = await pub.waitForTransactionReceipt({ hash });
+  if (r.status !== "success") throw new Error(`transaction reverted (${hash})`);
+  return r;
+}
+
+function updateOwnerConsole() {
+  const show = !!(selected && me && selected.owner.toLowerCase() === me.toLowerCase());
+  $("#owner-console").hidden = !show;
+}
+async function ownerAction(fn) {
+  const msg = $("#oc-msg");
+  try { msg.className = "note"; msg.textContent = "Waiting for your wallet…"; await fn(); msg.textContent = "Done. Refreshing…"; await refresh(selected.address); msg.textContent = "Done."; }
+  catch (e) { msg.className = "note err"; msg.textContent = e.shortMessage || e.message; }
+}
+const amt = () => parseUnits(String($("#oc-amt").value || "0"), 6);
+$("#oc-deposit").onclick = () => ownerAction(async () => { await send(CFG.usdc, ERC20, "approve", [selected.address, amt()]); await send(selected.address, MANDATE, "deposit", [amt()]); });
+$("#oc-withdraw").onclick = () => ownerAction(() => send(selected.address, MANDATE, "withdraw", [amt(), me]));
+$("#oc-freeze").onclick = () => ownerAction(() => send(selected.address, MANDATE, "freeze"));
+$("#oc-unfreeze").onclick = () => ownerAction(() => send(selected.address, MANDATE, "unfreeze"));
+$("#oc-exit").onclick = () => ownerAction(async () => {
+  const shares = await pub.readContract({ address: CFG.vault, abi: VAULT, functionName: "balanceOf", args: [selected.address] });
+  if (shares === 0n) throw new Error("Nothing is in the vault.");
+  const data = encodeFunctionData({ abi: VAULT, functionName: "redeem", args: [shares, selected.address, selected.address] });
+  await send(selected.address, MANDATE, "ownerExecute", [CFG.vault, 0n, data]);
+});
+
+// ── create flow: seven wallet confirmations, shown as they happen ──
+$("#create-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const msg = $("#c-msg"); msg.className = "note";
+  if (!wallet && !(await connect())) return;
+  const amount = parseUnits(String($("#c-amt").value), 6);
+  const agent = $("#c-agent").value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(agent)) { msg.className = "note err"; msg.textContent = "The agent must be a 0x address."; return; }
+  const bal = await pub.readContract({ address: CFG.usdc, abi: ERC20, functionName: "balanceOf", args: [me] });
+  if (bal < amount + 100000n) { msg.className = "note err"; msg.textContent = `This wallet holds ${usd(bal)} USDC on Arc. It needs ${usd(amount)} for the deposit plus about 0.10 for gas.`; return; }
+  const limits = { maxDeployed: amount, maxDrawdownBps: Number($("#c-dd").value), maxLossPerCallBps: 10, expiry: BigInt(Math.floor(Date.now() / 1000) + Number($("#c-days").value) * 86400) };
+  const steps = ["Create your mandate account", "Allow the Galaxy USDC vault", "Allow deposits (to the account only)", "Allow withdrawals (to the account only)", "Allow redemptions (to the account only)", "Approve the USDC deposit", "Deposit into the account"];
+  const ol = $("#c-steps"); ol.hidden = false;
+  const mark = (i, cls) => { ol.innerHTML = steps.map((s, j) => `<li class="${j < i ? "done" : j === i ? cls : ""}">${s}</li>`).join(""); };
+  let i = 0; $("#c-go").disabled = true;
+  try {
+    mark(0, "now");
+    const r = await send(CFG.factory, FACTORY, "create", [agent, limits]);
+    const created = r.logs.map((l) => { try { return decodeEventLog({ abi: FACTORY, data: l.data, topics: l.topics }); } catch { return null; } }).find((e) => e?.eventName === "MandateCreated");
+    const m = created.args.mandate;
+    mark(++i, "now"); await send(m, MANDATE, "setVenue", [CFG.vault, true, amount, CFG.valuer]);
+    mark(++i, "now"); await send(m, MANDATE, "setRule", [CFG.vault, "0x6e553f65", true, 2]);
+    mark(++i, "now"); await send(m, MANDATE, "setRule", [CFG.vault, "0xb460af94", true, 6]);
+    mark(++i, "now"); await send(m, MANDATE, "setRule", [CFG.vault, "0xba087652", true, 6]);
+    mark(++i, "now"); await send(CFG.usdc, ERC20, "approve", [m, amount]);
+    mark(++i, "now"); await send(m, MANDATE, "deposit", [amount]);
+    mark(steps.length, "");
+    msg.innerHTML = `Your account ${addrLink(m)} is live. The agent will pick it up on its next cycle, within five minutes.`;
+    await refresh(m);
+  } catch (e) { mark(i, "err"); msg.className = "note err"; msg.textContent = `Step ${i + 1} failed: ${e.shortMessage || e.message}. Steps already confirmed stay on-chain; you can finish from the owner controls.`; }
+  finally { $("#c-go").disabled = false; }
+});
+
+async function refresh(focus) {
+  await renderBoard();
+  const hero = states.find((s) => s.address.toLowerCase() === CFG.featured.toLowerCase()) || states[0];
+  if (hero) renderHero(hero, hero.events);
+  if (focus) await showDetail(focus);
+}
+
+(async () => {
+  drawGuilloche(); addEventListener("resize", drawGuilloche);
+  try { pub = await makePublic(); await refresh(); }
+  catch (e) { $("#hero").innerHTML = `<p class="err">${esc(e.message)}. Try again in a moment, or read the contracts on ${addrLink(CFG.factory, "the explorer")}.</p>`; }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "mandate-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cash-sweep treasury agent for Mandate accounts on Arc",
+  "scripts": {
+    "start": "node src/index.js",
+    "once": "node src/index.js --once",
+    "judge": "node judge/run.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "ethers": "^6.13.0",
+    "viem": "^2.21.0"
+  }
+}
