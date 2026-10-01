@@ -39,6 +39,33 @@ export function mandateEvents(receipt, mandate) {
   return out;
 }
 
+// common venue errors, by selector
+const VENUE_ERRORS = {
+  "0xace2a47e": "vault illiquid: TransferReverted() (market fully borrowed)",
+  "0x4323a555": "vault illiquid: NotEnoughLiquidity()",
+  "0xfe9cceec": "ERC4626ExceededMaxWithdraw",
+  "0xb94abeec": "ERC4626ExceededMaxRedeem",
+  "0x79012fb2": "ERC4626ExceededMaxDeposit",
+  "0x4e487b71": "arithmetic panic in venue",
+};
+
+/** execute() returned false: ask the venue directly, from the mandate's address, why. */
+async function venueReason(pub, mandate, call) {
+  try {
+    await pub.call({ account: mandate, to: call.target, data: call.data });
+    return "execute() would return false although the venue call alone succeeds: a mandate limit would trip";
+  } catch (e) {
+    let hex = null;
+    for (let d = e; d && !hex; d = d.cause) {
+      if (typeof d.data === "string" && /^0x[0-9a-f]{8}/i.test(d.data)) hex = d.data;
+      else if (typeof d.data?.data === "string") hex = d.data.data;
+    }
+    hex ||= (String(e.details || e.message).match(/0x[0-9a-fA-F]{8,}/) || [])[0] || null;
+    const sel = hex ? hex.slice(0, 10).toLowerCase() : null;
+    return `venue rejected the call: ${sel ? VENUE_ERRORS[sel] || `error ${sel}` : (e.shortMessage || "revert")}`;
+  }
+}
+
 export const reasonText = (b32) => hexToString(b32, { size: 32 }).replace(/\0+$/, "");
 
 /**
@@ -52,8 +79,9 @@ export async function runCalls({ pub, wallet, cfg, snap, calls, log }) {
     const base = { address: snap.mandate, abi: MANDATE_ABI, functionName: "execute", args: [call.target, call.data], account: wallet.account };
     const sim = await pub.simulateContract(base).catch((e) => ({ error: e.shortMessage || e.message }));
     if (sim.error || sim.result !== true) {
-      results.push({ ...call, status: "PREFLIGHT_BLOCKED", detail: sim.error || "execute() would return false" });
-      log(`  ✗ preflight blocked ${call.label}: ${sim.error || "execute() would return false"}`);
+      const detail = sim.error || (await venueReason(pub, snap.mandate, call));
+      results.push({ ...call, status: "PREFLIGHT_BLOCKED", detail });
+      log(`  ✗ preflight blocked ${call.label}: ${detail}`);
       return { ok: false, results };
     }
     if (cfg.dryRun) {

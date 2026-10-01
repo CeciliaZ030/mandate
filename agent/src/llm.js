@@ -21,6 +21,21 @@ export function buildPrompt(snap, decision) {
   return lines.filter(Boolean).join("\n");
 }
 
+/** Pull the last parseable {...} object out of a model reply, ignoring <think> blocks and code fences. */
+export function extractJson(text) {
+  if (typeof text !== "string" || !text) return null;
+  const t = text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/```(?:json)?/gi, "");
+  for (let end = t.lastIndexOf("}"); end >= 0; end = t.lastIndexOf("}", end - 1)) {
+    for (let start = t.lastIndexOf("{", end); start >= 0; start = t.lastIndexOf("{", start - 1)) {
+      try {
+        const o = JSON.parse(t.slice(start, end + 1));
+        if (o && typeof o === "object" && "choice" in o) return o;
+      } catch {}
+    }
+  }
+  return null;
+}
+
 export async function review(cfg, snap, decision) {
   if (!cfg.llm.baseUrl || decision.candidates.length < 2) return null;
   const ctrl = new AbortController();
@@ -33,17 +48,23 @@ export async function review(cfg, snap, decision) {
       body: JSON.stringify({
         model: cfg.llm.model,
         temperature: 0,
-        max_tokens: 400,
+        // reasoning models spend tokens thinking before they answer: leave room for both
+        max_tokens: cfg.llm.maxTokens,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: buildPrompt(snap, decision) },
         ],
       }),
     });
-    if (!res.ok) throw new Error(`LLM HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${(await res.text()).replace(/\s+/g, " ").slice(0, 160)}`);
     const body = await res.json();
-    const text = body.choices?.[0]?.message?.content ?? "";
-    const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    const msg = body.choices?.[0]?.message ?? {};
+    const json = extractJson(msg.content) ?? extractJson(msg.reasoning_content) ?? extractJson(msg.reasoning);
+    if (!json) {
+      const fin = body.choices?.[0]?.finish_reason;
+      const peek = String(msg.content ?? "").replace(/\s+/g, " ").slice(0, 120);
+      throw new Error(`no JSON in reply (finish_reason=${fin}${fin === "length" ? ", raise LLM_MAX_TOKENS" : ""}; content="${peek}")`);
+    }
     return {
       choice: String(json.choice ?? ""),
       rationale: String(json.rationale ?? "").slice(0, 400),

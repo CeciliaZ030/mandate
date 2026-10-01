@@ -84,6 +84,9 @@ export function startServer({ cfg, indexer, getStatus, log }) {
       return send(res, 500, { error: String(e.message || e) });
     }
   });
+  server.on("error", (e) => {
+    log(e.code === "EADDRINUSE" ? `api: port ${cfg.port} is taken; set PORT in .env to a free port. The agent keeps running without the API.` : `api error: ${e.message}`);
+  });
   server.listen(cfg.port, cfg.host, () => log(`api on http://${cfg.host}:${cfg.port}`));
   return server;
 }

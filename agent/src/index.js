@@ -43,7 +43,8 @@ const indexer = new Indexer({ pub, cfg, log });
 const status = { agent: account.address, dryRun: cfg.dryRun, lastCycle: null, mandates: {} };
 
 log(`agent ${account.address} | factory ${cfg.factory} | venues ${cfg.venues.map((v) => v.name).join(", ") || "none"} | ${cfg.dryRun ? "DRY RUN" : "LIVE"}`);
-startServer({ cfg, indexer, getStatus: () => status, log });
+const once = process.argv.includes("--once");
+if (!once) startServer({ cfg, indexer, getStatus: () => status, log }); // a one-shot cycle needs no API
 
 async function cycleMandate(mandate) {
   const snap = await snapshot({ pub, cfg, state, mandate, payables: readPayables() });
@@ -154,7 +155,6 @@ async function cycle() {
   saveState();
 }
 
-const once = process.argv.includes("--once");
 await cycle();
 if (once) process.exit(0);
 // chain cycles instead of setInterval: a slow cycle (receipts, reviewer) must never overlap the next
