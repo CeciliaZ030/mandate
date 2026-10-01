@@ -53,6 +53,16 @@ async function cycleMandate(mandate) {
   const v = snap.venue;
   log(`[${mandate.slice(0, 10)}] nav ${fmt(decision.facts.nav ?? snap.idle)} idle ${fmt(snap.idle)} deployed ${fmt(v?.value ?? 0n)} → ${decision.mode}: ${decision.candidates.map((c) => `${c.id}(${fmt(c.amount)})`).join(" | ")}`);
 
+  const key = mandate.toLowerCase();
+  const blk = state.blocked[key];
+  const baseStatus = { at: snap.now, mode: decision.mode, nav: String(decision.facts.nav ?? snap.idle), idle: String(snap.idle), deployed: String(v?.value ?? 0n), frozen: snap.frozen };
+  // same action still blocked: skip the reviewer and the retry until the backoff ends
+  if (blk && snap.now < blk.until && decision.primary.kind === blk.kind) {
+    log(`  backing off: last ${blk.kind} was blocked (${blk.reason || blk.detail}); retry after ${new Date(blk.until * 1000).toISOString()}`);
+    status.mandates[mandate] = { ...baseStatus, chosen: null, blocked: blk.reason || blk.detail, backoffUntil: new Date(blk.until * 1000).toISOString() };
+    return;
+  }
+
   const rev = await review(cfg, snap, decision);
   const { chosen, overridden, reason } = resolveChoice(decision, rev);
   if (rev?.error) log(`  reviewer unavailable: ${rev.error} → policy default`);
@@ -64,26 +74,20 @@ async function cycleMandate(mandate) {
   const heartbeatDue = now - lastHb >= cfg.heartbeatHours * 3600;
   const alertNew = chosen.kind === "ALERT" && state.lastAlert?.[mandate] !== chosen.why;
 
-  const key = mandate.toLowerCase();
-  const blk = state.blocked[key];
   let execution = null;
   let blockedRepeat = false;
-  if (isAction && blk && now < blk.until) {
-    log(`  backing off: last ${blk.kind} was blocked (${blk.detail}); retry after ${new Date(blk.until * 1000).toISOString()}`);
-    return;
-  }
   if (isAction) {
     execution = await runCalls({ pub, wallet, cfg, snap, calls: planCalls(cfg, snap, chosen), log });
     if (!execution.ok && !cfg.dryRun) {
       const last = execution.results.at(-1);
-      blockedRepeat = blk?.kind === chosen.kind && blk?.detail === last?.status;
-      state.blocked[key] = { kind: chosen.kind, detail: last?.status, until: now + cfg.blockedBackoffMinutes * 60 };
+      blockedRepeat = blk?.kind === chosen.kind && (blk?.status ?? blk?.detail) === last?.status;
+      state.blocked[key] = { kind: chosen.kind, status: last?.status, reason: last?.detail || last?.status, until: now + cfg.blockedBackoffMinutes * 60 };
     } else if (execution.ok) delete state.blocked[key];
     if (execution.ok && chosen.kind === "EXIT_ALL" && decision.mode === "RISK_EXIT" && !cfg.dryRun)
       state.cooldownUntil[key] = now + cfg.riskCooldownHours * 3600;
   }
 
-  status.mandates[mandate] = { at: now, mode: decision.mode, chosen: chosen.id, nav: String(decision.facts.nav ?? snap.idle), idle: String(snap.idle), deployed: String(v?.value ?? 0n), frozen: snap.frozen };
+  status.mandates[mandate] = { ...baseStatus, chosen: chosen.id, ...(execution && !execution.ok ? { blocked: execution.results.at(-1)?.detail || execution.results.at(-1)?.status } : {}) };
 
   if ((isAction && !blockedRepeat) || heartbeatDue || alertNew) {
     const record = {
