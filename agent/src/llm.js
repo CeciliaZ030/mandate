@@ -15,6 +15,7 @@ export function buildPrompt(snap, decision) {
     `Idle target ${fmt(decision.facts.target ?? 0n)} (band ±${fmt(decision.facts.band ?? 0n)}) | payables due ≤72h ${fmt(decision.facts.dueHorizon ?? 0n)}, ≤24h ${fmt(decision.facts.dueUrgent ?? 0n)}`,
     `Upcoming payables: ${snap.payables.length ? snap.payables.map((p) => `${p.label} ${fmt(p.amount)} due ${new Date(p.dueAt * 1000).toISOString()}`).join("; ") : "none"}`,
     `Gas per action ≈ 0.003-0.005 USDC.`,
+    `Note: yield accrual can lift "deployed" slightly above maxDeployed or the venue cap. That is normal and NOT a breach; only calls that add exposure are capped.`,
     `Candidates:`,
     ...decision.candidates.map((c) => `- id=${c.id} kind=${c.kind} amount=${fmt(c.amount)} USDC — ${c.why}`),
   ];
