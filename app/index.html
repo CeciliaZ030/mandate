@@ -58,7 +58,7 @@ button.danger{border-color:var(--stamp);color:var(--stamp)}
 .ruler .marker{position:absolute;top:24px;width:0;transition:left 1.4s cubic-bezier(.2,.8,.2,1)}
 .ruler .marker::before{content:"";position:absolute;left:-9px;top:0;border:9px solid transparent;border-top:13px solid var(--green);border-bottom:0}
 .ruler .marker span{position:absolute;top:30px;left:50%;transform:translateX(-50%);white-space:nowrap;font:600 12px/1 var(--sans);color:var(--green)}
-.ruler .marker.edge-r span{left:auto;right:-4px;transform:none}
+.ruler .marker.edge-r span{left:auto;right:10px;transform:none}
 .ruler .marker.edge-l span{left:-4px;transform:none}
 @media (prefers-reduced-motion:reduce){.ruler .marker{transition:none}}
 .split{display:flex;height:8px;border:1px solid var(--ink);margin-top:14px}
@@ -68,6 +68,11 @@ button.danger{border-color:var(--stamp);color:var(--stamp)}
 .facts b{display:block;font:500 20px/1.2 var(--serif);margin-top:2px}
 .proof{margin:14px 0 0;font-size:15px}
 .proof .blocked{color:var(--stamp);font-weight:600}
+.agentline{margin:14px 0 0;padding:10px 12px;border-left:3px solid var(--rule);background:var(--paper);font-size:15px}
+.agentline.wait{border-left-color:#B7791F}
+.agentline.ok{border-left-color:var(--green)}
+.agentline.bad{border-left-color:var(--stamp)}
+.agentline b{font-weight:600}
 
 /* sections */
 section{padding:44px 0;border-top:1px solid var(--rule)}
@@ -346,6 +351,7 @@ function renderHero(s, evs) {
       <div>Mandate ends<b class="num">${new Date(s.limits.expiry * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</b></div>
       <div>Attempts blocked<b class="num">${breaches.length}</b></div>
     </div>
+    <p class="agentline" id="agent-status" hidden></p>
     ${lastBreach ? `<p class="proof">Latest blocked attempt: <span class="blocked">${esc(lastBreach.args.reasonText || "breach")}</span>: ${esc(WHY[lastBreach.args.reasonText] || "the call broke the mandate")}. The call was undone and nothing moved. ${txLink(lastBreach.tx, "See the transaction")}.</p>` : ""}`;
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const mk = $("#marker"); mk.classList.toggle("edge-r", pos > 0.85); mk.classList.toggle("edge-l", pos < 0.15);
@@ -535,10 +541,35 @@ $("#create-form").addEventListener("submit", async (ev) => {
   finally { $("#c-go").disabled = false; }
 });
 
+const hhmm = (d) => new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+async function renderAgentStatus(s) {
+  const el = $("#agent-status"); if (!el) return;
+  let h;
+  try { const r = await fetch(`${CFG.api}/api/health`, { signal: AbortSignal.timeout(6000) }); if (!r.ok) throw 0; h = await r.json(); }
+  catch { el.hidden = false; el.className = "agentline"; el.textContent = "The agent's status service is not answering right now. The account and its limits are on-chain and unaffected."; return; }
+  const m = Object.entries(h.mandates || {}).find(([a]) => a.toLowerCase() === s.address.toLowerCase())?.[1];
+  const ageMin = h.lastCycle ? (Date.now() - Date.parse(h.lastCycle)) / 60000 : Infinity;
+  el.hidden = false;
+  if (ageMin > 20) { el.className = "agentline bad"; el.innerHTML = `<b>Agent offline.</b> Its last check was ${h.lastCycle ? hhmm(h.lastCycle) : "never"}. Funds stay in the account; only the owner can move them.`; return; }
+  const last = `Last check ${hhmm(h.lastCycle)}.`;
+  if (!m) { el.className = "agentline"; el.textContent = `The agent is running but does not operate this account. ${last}`; return; }
+  if (m.frozen) { el.className = "agentline bad"; el.innerHTML = `<b>The agent has stopped:</b> the account is frozen and waits for the owner's review. ${last}`; return; }
+  if (m.blocked) {
+    const illiquid = /illiquid|TransferReverted|NotEnoughLiquidity/i.test(m.blocked);
+    const why = illiquid ? `${esc(CFG.vaultName)} can't pay out right now: everything in the vault is lent out to borrowers` : `the move was refused (${esc(m.blocked)})`;
+    el.className = "agentline wait";
+    el.innerHTML = `<b>The agent is waiting.</b> It wants to move cash back to the idle reserve, but ${why}. It tested the withdrawal first, so nothing was sent and no gas was spent. ${last}${m.backoffUntil ? ` Next try after ${hhmm(m.backoffUntil)}.` : ""}`;
+    return;
+  }
+  const what = { HOLD: "holding: the balance is where it should be", DISCRETIONARY: "acted on its last decision", MUST_ACT: "covering a payment that is due", RISK_EXIT: "pulling funds out of the vault to limit risk", ALERT: "alerting the owner" }[m.mode] || m.mode;
+  el.className = "agentline ok";
+  el.innerHTML = `<b>Agent running:</b> ${what}. ${last}`;
+}
+
 async function refresh(focus) {
   await renderBoard();
   const hero = states.find((s) => s.address.toLowerCase() === CFG.featured.toLowerCase()) || states[0];
-  if (hero) renderHero(hero, hero.events);
+  if (hero) { renderHero(hero, hero.events); renderAgentStatus(hero).catch(() => {}); }
   if (focus) await showDetail(focus);
 }
 

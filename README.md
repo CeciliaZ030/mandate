@@ -4,7 +4,7 @@
 
 ### Give an AI agent a USDC budget and hard limits it cannot break.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-TODO-22D3EE?style=for-the-badge)](#)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-mandate--three--pi.vercel.app-22D3EE?style=for-the-badge)](https://mandate-three-pi.vercel.app)
 [![Contract](https://img.shields.io/badge/Arc_Mainnet-Live-3B82F6-3B82F6?style=for-the-badge)](#deployment)
 [![License](https://img.shields.io/badge/License-MIT-0B1020?style=for-the-badge)](LICENSE)
 [![Built on Arc](https://img.shields.io/badge/Built_on-Arc-3B82F6?style=for-the-badge)](https://arc.io)
