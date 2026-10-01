@@ -58,6 +58,8 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Offline judge demo + local end-to-end harness | `make judge-demo` (23 contract tests + 15 decision scenarios), `make e2e` |
 | Agent live on mainnet under PM2, public decision records and status API | `https://mandate.baserep.xyz/api/health`, note tx `0x8b76fd84…e0c5` |
 | Live liquidity-freeze handling: venue revert diagnosis, backoff, status line on the dashboard | commits `67a5d4e`, `42cd2f2`; the section above |
+| Owner-signed bills: the owner adds a bill by signing it with the owner wallet (checked against `owner()` on-chain), the agent keeps its cash ready, the owner pays from the dashboard, the bill settles from the on-chain payment | `agent/src/bills.js`, dashboard Bills section, `make e2e-bills` (forged, stale, tampered, replayed bills refused) |
+| New mandates moved to a vault that kept paying out during the freeze (Steakhouse Prime USDC), checked on-chain with a real holder's withdrawal simulation | dashboard config, valuer `0x7c98…627f` |
 | Independent review of the agent before going live: 7 bugs found and fixed (incl. an RPC-relay allowlist bypass confirmed against the live RPC) | commit `d892807` message, regression scenarios in `agent/judge/run.js` |
 
 ## Real vs. simulated
@@ -70,7 +72,7 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Agent running on mainnet, decisions and notes | **Real** since Oct 1, 14:19 UTC (note tx `0x8b76fd84…e0c5`) |
 | Agent withdrawals on mainnet | **Not yet**: the vault has been illiquid since the agent went live; it will execute on its own when liquidity returns. TODO: add the tx if it happens before submission |
 | Liquidity freeze | **Real**, not staged: a third-party Morpho market reached full utilization |
-| Payables schedule | **Illustrative** amounts from the builder's own mandate; no third-party company data |
+| Payables schedule | Owner-signed bills entered in the dashboard; the first mandate's schedule was illustrative. No third-party company data |
 | Vault loss / drawdown / expiry exits | **Simulated** in `make e2e` (mock vault loses 1%) and the judge scenarios; not triggered on mainnet |
 | Third-party mandates | TODO: number of wallets other than the builder's that created a mandate |
 | Reviewer model | **Real** LiteLLM call in production; a deterministic stub in local tests, labelled `stub-reviewer` in records |
@@ -92,9 +94,9 @@ At the default cadence the agent spends about 0.0028 USDC a day on upkeep (one `
 
 ## Next
 
-- A second venue per mandate, so one illiquid vault can't trap the whole reserve.
+- A second venue per mandate, so one illiquid vault can't trap the whole reserve. (New mandates already default to the vault that stayed liquid.)
 - Fund the idle reserve at creation, not on the agent's first cycle.
-- Payouts: today the agent only moves cash between the account and the vault, and the owner signs vendor payments. Allowlisted payees with per-payee caps are the next primitive.
+- Payouts: the agent keeps bill cash ready, but only the owner's wallet can pay a bill. Allowlisted payees with per-payee caps, enforced by the contract, would let the agent pay on the due date by itself.
 
 ## Circle tooling used
 

@@ -22,10 +22,10 @@
 
 ```bash
 git clone https://github.com/Makabeez/mandate && cd mandate
-make judge-demo     # no wallet, no RPC, no API key: 23 contract tests + 11 agent decision scenarios
+make judge-demo     # no wallet, no RPC, no API key: 23 contract tests + 15 agent decision scenarios + 17 bill checks
 ```
 
-For the full loop on a local chain (real contracts, the real agent process, a stub reviewer): `cd agent && npm install && cd .. && make e2e`.
+For the full loop on a local chain (real contracts, the real agent process, a stub reviewer): `cd agent && npm install && cd .. && make e2e`. For the owner's bill flow (sign a bill, the agent raises cash, the owner pays, the bill settles, forged and replayed bills refused): `make e2e-bills`.
 
 ## Why
 
@@ -150,6 +150,14 @@ FACTORY=0x... AGENT=0x... VAULT=0x... \
 | MandateAccount (first live mandate) | `0xEa08f2195ae9f29079a4cb6aFB05238949576d57` |
 | ERC4626Valuer (Galaxy USDC) | `0xd4e895ACf808bB215b6DE8eC84F4b9f974fd0b61` |
 | Venue: Galaxy USDC (Morpho) | `0x8E357432CC12ff425c36432F312968aEb16112AF` |
+| Venue for new mandates: Steakhouse Prime USDC (Morpho) | `0xbeef0007d5A04246F5382957035Df34f7e82102e` |
+| ERC4626Valuer (Steakhouse Prime USDC) | `0x7c9878a2c993b90155339D09365449a5263E627f` |
+
+New mandates use Steakhouse Prime USDC: on Oct 1 Galaxy USDC was fully lent out and could not pay out any amount, while Steakhouse Prime kept serving withdrawals.
+
+### Bills
+
+The owner adds a bill (payee, amount, due date) by signing a plain-text message with the owner wallet; the agent's API checks the signature against `owner()` on-chain, so nobody else can add or remove one. Open bills feed the agent's payables: it keeps their cash idle and pulls it out of the vault when one is due within 24h. The owner pays from the dashboard (`withdraw(amount, payee)`, pulling any shortfall out of the vault first), and the bill settles itself when that payment appears on-chain. The agent never pays anyone: the contract only lets it move funds between the account and the vault.
 
 ### Live proof (Arc mainnet)
 

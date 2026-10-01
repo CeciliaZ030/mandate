@@ -19,6 +19,7 @@
   --green:#6FB39C; --green-soft:#1D3530; --stamp:#E3776A; --stamp-soft:#3A1F1D; --focus:#8AB4FF;
 }}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.55 var(--sans);font-feature-settings:"tnum" 1,"lnum" 1}
 a{color:inherit;text-decoration-color:var(--rule);text-underline-offset:3px}
@@ -78,7 +79,7 @@ button.danger{border-color:var(--stamp);color:var(--stamp)}
 section{padding:44px 0;border-top:1px solid var(--rule)}
 h2{font:500 30px/1.15 var(--serif);margin:0 0 6px;letter-spacing:-.01em}
 h3{font:600 17px/1.3 var(--sans);margin:0 0 10px}
-.sub{margin:0 0 22px;color:var(--ink-2);max-width:66ch}
+.sub{margin:0 0 22px;color:var(--ink-2);max-width:66ch;overflow-wrap:anywhere}
 table{width:100%;border-collapse:collapse;font-size:15px}
 th{font:600 13px/1.3 var(--sans);text-align:left;color:var(--ink-2);padding:8px 10px;border-bottom:1.5px solid var(--ink)}
 td{padding:11px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
@@ -89,7 +90,7 @@ tr.pick{cursor:pointer} tr.pick:hover td{background:var(--paper-2)} tr.sel td{ba
 .scroll{overflow-x:auto}
 
 .detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:36px}
-@media (max-width:820px){.detail{grid-template-columns:1fr}}
+@media (max-width:820px){.detail{grid-template-columns:minmax(0,1fr)}}
 dl.terms{margin:0;display:grid;grid-template-columns:auto 1fr;gap:9px 18px;font-size:15px}
 dl.terms dt{color:var(--ink-2)} dl.terms dd{margin:0;font-weight:500}
 .signed{margin-top:18px;padding-top:12px;border-top:1px solid var(--ink);font:italic 400 15px/1.4 var(--serif);color:var(--ink-2)}
@@ -111,6 +112,12 @@ label .hint{display:block;font-weight:400;color:var(--ink-2);font-size:13px;marg
 input,select{width:100%;margin-top:7px;font:500 16px/1.2 var(--sans);color:var(--ink);background:var(--paper);border:1.5px solid var(--ink);border-radius:3px;padding:10px 11px}
 ol.steps{margin:22px 0 0;padding-left:22px;font-size:15px}
 ol.steps li{padding:3px 0;color:var(--ink-2)} ol.steps li.done{color:var(--green)} ol.steps li.now{color:var(--ink);font-weight:600} ol.steps li.err{color:var(--stamp)}
+table.bills td{padding:9px 8px;font-size:14.5px} table.bills th{padding:6px 8px}
+table.bills td.act{white-space:nowrap;text-align:right} table.bills td.act button{padding:6px 9px;font-size:13px;margin-left:6px}
+table.bills .due-soon{color:#B7791F;font-weight:600} table.bills .late{color:var(--stamp);font-weight:600}
+table.bills td.due{white-space:nowrap}
+.billsbox{margin-top:36px;padding-top:24px;border-top:1px solid var(--rule)} .billsbox .note{max-width:80ch}
+form.billform{margin-top:16px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
 .console{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:18px}
 .console input{width:140px}
 .note{font-size:14px;color:var(--ink-2);margin-top:10px}
@@ -177,11 +184,24 @@ code{font:500 13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:br
         <ol class="ledger" id="d-ledger"></ol>
       </div>
     </div>
+    <div id="bills-box" class="billsbox">
+      <h3>Bills</h3>
+      <p class="note" style="margin-top:-4px">Each bill is signed by the owner's wallet, so nobody else can add one. The agent keeps enough cash idle for bills due in the next three days and pulls it out of the vault when a bill is close. The owner pays from here; a bill shows as paid once the payment is on-chain.</p>
+      <div class="scroll"><table class="bills"><thead><tr><th>For</th><th>Pay to</th><th class="r">USDC</th><th>Due</th><th>Status</th><th class="r"><span class="sr">Actions</span></th></tr></thead><tbody id="d-bills"></tbody></table></div>
+      <form class="create billform" id="bill-form" hidden>
+        <label>What for<span class="hint">Shown on the ledger</span><input id="b-label" maxlength="80" placeholder="Hosting, October" required></label>
+        <label>Pay to<span class="hint">The supplier's Arc address</span><input id="b-payee" placeholder="0x…" required></label>
+        <label>Amount<span class="hint">USDC</span><input id="b-amt" type="number" min="0.01" step="0.01" required></label>
+        <label>Due<span class="hint">The agent gets cash ready 24h before</span><input id="b-due" type="date" required></label>
+        <div><button class="primary" id="b-go" type="submit">Sign and add the bill</button></div>
+      </form>
+      <p class="note" id="bill-msg" role="status"></p>
+    </div>
   </section>
 
   <section id="create">
     <h2>Put an account under mandate</h2>
-    <p class="sub">Your wallet creates and owns the account. The agent can move money only into the Galaxy USDC vault on Morpho and back, within the limits you set here. You can withdraw at any time.</p>
+    <p class="sub" id="c-sub">Your wallet creates and owns the account. The agent can move money only into one vault and back, within the limits you set here. You pay your bills and withdraw at any time.</p>
     <form class="create" id="create-form">
       <label>Deposit<span class="hint">USDC from your wallet on Arc</span><input id="c-amt" type="number" min="1" step="0.01" value="5" required></label>
       <label>Maximum drawdown<span class="hint">The account freezes past this loss</span>
@@ -204,7 +224,7 @@ code{font:500 13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:br
 </div>
 
 <script type="module">
-import { createPublicClient, createWalletClient, custom, http, parseAbi, formatUnits, parseUnits, hexToString, encodeFunctionData, decodeEventLog } from "https://cdn.jsdelivr.net/npm/viem@2.21.54/+esm";
+import { createPublicClient, createWalletClient, custom, http, parseAbi, formatUnits, parseUnits, hexToString, encodeFunctionData, decodeEventLog, isAddress, getAddress } from "https://cdn.jsdelivr.net/npm/viem@2.21.54/+esm";
 
 // ── configuration (edit for your deployment) ──
 const CFG = {
@@ -215,9 +235,15 @@ const CFG = {
   factory: "0xb3F362850E04aD6e9147698Cc1EdbcB8891f307e",
   featured: "0xEa08f2195ae9f29079a4cb6aFB05238949576d57",
   usdc: "0x3600000000000000000000000000000000000000",
-  vault: "0x8E357432CC12ff425c36432F312968aEb16112AF",
-  vaultName: "Galaxy USDC (Morpho)",
-  valuer: "0xd4e895ACf808bB215b6DE8eC84F4b9f974fd0b61",
+  // venue for NEW mandates: Steakhouse Prime USDC kept paying out while Galaxy USDC was fully lent out (Oct 1)
+  vault: "0xbeef0007d5A04246F5382957035Df34f7e82102e",
+  vaultName: "Steakhouse Prime USDC (Morpho)",
+  valuer: "0x7c9878a2c993b90155339D09365449a5263E627f",
+  // every venue the dashboard can name (existing mandates keep the venue they were created with)
+  venueNames: {
+    "0x8e357432cc12ff425c36432f312968aeb16112af": "Galaxy USDC (Morpho)",
+    "0xbeef0007d5a04246f5382957035df34f7e82102e": "Steakhouse Prime USDC (Morpho)",
+  },
   hostedAgent: "0x45282E682C2cfb4e2AF892105a385cC33e88fB28",
   fromBlock: 23603500n,
 };
@@ -226,6 +252,7 @@ const CFG = {
   for (const k of ["rpc", "factory", "featured", "vault", "usdc", "valuer", "hostedAgent"]) if (q.get(k)) CFG[k] = q.get(k);
   if (q.get("chain")) CFG.chainId = Number(q.get("chain"));
   if (q.get("from")) CFG.fromBlock = BigInt(q.get("from")); }
+const venueName = (a) => !a ? "the vault" : CFG.venueNames[a.toLowerCase()] || (a.toLowerCase() === CFG.vault.toLowerCase() ? CFG.vaultName : `vault ${a.slice(0, 6)}…${a.slice(-4)}`);
 
 const MANDATE = parseAbi([
   "function owner() view returns (address)", "function agent() view returns (address)", "function frozen() view returns (bool)",
@@ -251,7 +278,8 @@ const FACTORY = parseAbi([
   "event MandateCreated(address indexed owner, address indexed agent, address mandate, (uint128 maxDeployed, uint16 maxDrawdownBps, uint16 maxLossPerCallBps, uint64 expiry) limits)",
 ]);
 const ERC20 = parseAbi(["function approve(address,uint256) returns (bool)", "function balanceOf(address) view returns (uint256)", "function allowance(address,address) view returns (uint256)"]);
-const VAULT = parseAbi(["function balanceOf(address) view returns (uint256)", "function convertToAssets(uint256) view returns (uint256)", "function redeem(uint256,address,address) returns (uint256)"]);
+const VAULT = parseAbi(["function balanceOf(address) view returns (uint256)", "function convertToAssets(uint256) view returns (uint256)", "function redeem(uint256,address,address) returns (uint256)", "function withdraw(uint256,address,address) returns (uint256)"]);
+const VALUER = parseAbi(["function vault() view returns (address)"]);
 
 const chain = { id: CFG.chainId, name: "Arc", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: { default: { http: [CFG.rpc] } }, blockExplorers: { default: { name: "Arc Explorer", url: CFG.explorer } } };
 const $ = (s) => document.querySelector(s);
@@ -275,6 +303,7 @@ const ago = (ts) => { if (!ts) return ""; const d = new Date(ts * 1000); return 
 
 $("#f-factory").href = `${CFG.explorer}/address/${CFG.factory}`; $("#f-factory code").textContent = CFG.factory; $("#f-api").textContent = CFG.api;
 $("#c-agent").value = CFG.hostedAgent;
+$("#c-sub").innerHTML = `Your wallet creates and owns the account. The agent can move money only into ${addrLink(CFG.vault, esc(CFG.vaultName))} and back, within the limits you set here. You add bills, pay them and withdraw at any time; the agent keeps the cash for upcoming bills idle.`;
 
 // ── public client: direct RPC, falling back to the agent's read-only relay (CORS) ──
 let pub;
@@ -301,7 +330,7 @@ async function readMandate(m) {
 // events: agent indexer first, chunked chain scan as fallback
 async function events(m) {
   try {
-    const r = await fetch(`${CFG.api}/api/events?mandate=${m}`, { signal: AbortSignal.timeout(6000) });
+    const r = await fetch(`${CFG.api}/api/events?mandate=${m}${seenBlock ? `&block=${seenBlock}` : ""}`, { signal: AbortSignal.timeout(12000) });
     if (r.ok) return (await r.json()).events;
   } catch {}
   const head = await pub.getBlockNumber();
@@ -346,7 +375,7 @@ function renderHero(s, evs) {
     <p class="muted" style="margin:4px 0 0;font-size:14px">The ruler spans the loss the mandate allows: ${(s.limits.maxDrawdownBps / 100).toFixed(1)}% below the high-water mark. If the balance ever reaches the dashed line, the account freezes.</p>
     <div class="split" aria-hidden="true"><i class="dep" style="width:${deployedPct}%"></i><i class="idl"></i></div>
     <div class="facts">
-      <div>Earning in ${esc(CFG.vaultName)}<b class="num">${usd(s.deployed, 4)}</b></div>
+      <div>Earning in ${esc(venueName(s.venue?.address))}<b class="num">${usd(s.deployed, 4)}</b></div>
       <div>Idle reserve<b class="num">${usd(s.idle, 4)}</b></div>
       <div>Mandate ends<b class="num">${new Date(s.limits.expiry * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</b></div>
       <div>Attempts blocked<b class="num">${breaches.length}</b></div>
@@ -420,19 +449,24 @@ async function showDetail(m) {
   const L = s.limits;
   $("#d-terms").innerHTML = `
     <dt>Owner</dt><dd>${addrLink(s.owner)}</dd><dt>Agent</dt><dd>${addrLink(s.agent)}</dd>
-    <dt>Allowed venue</dt><dd>${s.venue ? (s.venue.address.toLowerCase() === CFG.vault.toLowerCase() ? esc(CFG.vaultName) : short(s.venue.address)) : "none"}</dd>
+    <dt>Allowed venue</dt><dd>${s.venue ? addrLink(s.venue.address, esc(venueName(s.venue.address))) : "none"}</dd>
     <dt>In the venue at most</dt><dd class="num">${s.venue ? usd(s.venue.cap) : "–"} USDC</dd>
     <dt>Deployed in total at most</dt><dd class="num">${usd(L.maxDeployed)} USDC</dd>
     <dt>Maximum drawdown</dt><dd class="num">${(L.maxDrawdownBps / 100).toFixed(1)}% (freezes at ${usd(s.floor, 4)})</dd>
     <dt>Maximum loss in one call</dt><dd class="num">${(L.maxLossPerCallBps / 100).toFixed(2)}%</dd>
     <dt>Agent rights end</dt><dd class="num">${new Date(L.expiry * 1000).toLocaleString("en-GB")}</dd>`;
-  $("#d-signed").textContent = "Funds only ever move between this account and the allowed vault. Anything else is refused by the contract, not by the agent's own code.";
-  const dec = await decisionAmounts(s.address);
+  $("#d-signed").textContent = "The agent can only move funds between this account and the allowed vault. Paying anyone else takes the owner's wallet. Anything outside that is refused by the contract, not by the agent's own code.";
+  const [dec] = await Promise.all([decisionAmounts(s.address), loadBills(s.address)]);
+  const paidBy = Object.fromEntries((bills || []).filter((b) => b.paidTx).map((b) => [b.paidTx.toLowerCase(), b]));
   const evs = [...s.events].filter((e) => e.name !== "RuleSet" && e.name !== "LimitsSet" && e.name !== "VenueSet" && e.name !== "MandateCreated" && e.name !== "Checkpoint").reverse();
   $("#d-ledger").innerHTML = evs.length ? evs.map((e, i) => {
     let [what, amt] = (ENTRY[e.name] || (() => [e.name, ""]))(e.args);
     const d = e.name === "Note" ? dec[e.args.contentHash] : null;
     if (d && d.amount && d.amount !== "0") amt = usd(BigInt(d.amount), 4);
+    if (e.name === "Withdrawn" && String(e.args.to).toLowerCase() !== s.owner.toLowerCase()) {
+      const b = paidBy[String(e.tx).toLowerCase()];
+      what = b ? `Owner paid “${b.label}” to ${short(e.args.to)}` : `Owner paid ${short(e.args.to)}`;
+    }
     const recBtn = e.name === "Note" ? `<button class="linkish" data-uri="${esc(e.args.uri)}" data-hash="${e.args.contentHash}" data-i="${i}">Read the reasoning</button>` : "";
     return `<li class="${e.name === "Breach" || e.name === "Frozen" ? "breach" : ""}"><span class="t">${ago(e.ts) || "block " + e.block}</span>
       <span class="what"><b>${esc(what)}</b><br>${txLink(e.tx, "transaction")} ${recBtn}</span><span class="amt">${esc(amt)}</span><div class="rec" id="rec-${i}" hidden></div></li>`;
@@ -480,16 +514,116 @@ async function connect() {
 }
 $("#connect").addEventListener("click", connect);
 
+let seenBlock = 0; // newest block with one of our own transactions: the API re-indexes up to it
 async function send(address, abi, functionName, args = []) {
   const hash = await wallet.writeContract({ address, abi, functionName, args });
   const r = await pub.waitForTransactionReceipt({ hash });
   if (r.status !== "success") throw new Error(`transaction reverted (${hash})`);
+  seenBlock = Math.max(seenBlock, Number(r.blockNumber));
   return r;
 }
 
+const isOwner = () => !!(selected && me && selected.owner.toLowerCase() === me.toLowerCase());
 function updateOwnerConsole() {
-  const show = !!(selected && me && selected.owner.toLowerCase() === me.toLowerCase());
+  const show = isOwner();
   $("#owner-console").hidden = !show;
+  $("#bill-form").hidden = !show;
+  if (show && !$("#b-due").value) $("#b-due").value = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  renderBills();
+}
+
+// ── bills: owner-signed, stored by the agent, settled by on-chain payments ──
+let bills = null, billsFor = null, billsErr = "";
+async function loadBills(m) {
+  billsFor = m; billsErr = "";
+  try {
+    const r = await fetch(`${CFG.api}/api/bills?mandate=${m}${seenBlock ? `&block=${seenBlock}` : ""}`, { signal: AbortSignal.timeout(12000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json(); bills = Array.isArray(j) ? j : j.bills || [];
+  } catch (e) { bills = null; billsErr = "The agent's bill service is not answering right now, so bills can't be shown. Payments already made are on the ledger."; }
+  renderBills();
+}
+function renderBills() {
+  const tb = $("#d-bills"); if (!tb || !selected) return;
+  if (bills === null) { tb.innerHTML = `<tr><td colspan="6" class="muted">${esc(billsErr || "Loading…")}</td></tr>`; return; }
+  const own = isOwner();
+  if (!bills.length) { tb.innerHTML = `<tr><td colspan="6" class="muted">${own ? "No bills yet. Add the first one below." : "No bills yet."}</td></tr>`; return; }
+  const rows = [...bills].sort((a, b) => (a.status === b.status ? Date.parse(a.due) - Date.parse(b.due) : a.status === "open" ? -1 : 1));
+  tb.innerHTML = rows.map((b) => {
+    const hrs = (Date.parse(b.due) - Date.now()) / 3600000;
+    const dueCls = b.status === "open" ? (hrs < 0 ? "late" : hrs < 72 ? "due-soon" : "") : "";
+    const st = b.status === "paid" ? `<span class="status ok">Paid</span> ${b.paidTx ? txLink(b.paidTx, "tx") : ""}` : `<span class="status exp">${hrs < 0 ? "Overdue" : "Open"}</span>`;
+    const act = own && b.status === "open" ? `<button class="primary" data-pay="${esc(b.id)}">Pay</button><button data-rm="${esc(b.id)}" title="Remove this bill">Remove</button>` : "";
+    return `<tr><td>${esc(b.label)}</td><td>${addrLink(b.payee)}</td><td class="r num">${esc(Number(b.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }))}</td>
+      <td class="due ${dueCls}">${new Date(b.due).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td><td>${st}</td><td class="act">${act}</td></tr>`;
+  }).join("");
+  tb.querySelectorAll("button[data-pay]").forEach((x) => x.addEventListener("click", () => payBill(bills.find((b) => b.id === x.dataset.pay))));
+  tb.querySelectorAll("button[data-rm]").forEach((x) => x.addEventListener("click", () => removeBill(bills.find((b) => b.id === x.dataset.rm))));
+}
+function billMessage(fields) {
+  return ["Mandate bill", `mandate: ${getAddress(selected.address)}`, `chain: ${CFG.chainId}`, ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`), `issued: ${new Date().toISOString()}`].join("\n");
+}
+async function postBill(message) {
+  const signature = await wallet.signMessage({ account: me, message });
+  const r = await fetch(`${CFG.api}/api/bills`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, signature }), signal: AbortSignal.timeout(15000) });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || `the agent refused the bill (HTTP ${r.status})`);
+  return body;
+}
+async function billAction(fn) {
+  const msg = $("#bill-msg");
+  try { msg.className = "note"; msg.textContent = "Waiting for your wallet…"; const done = await fn(); msg.textContent = done || "Done."; }
+  catch (e) { msg.className = "note err"; msg.textContent = e.shortMessage || e.message; }
+}
+$("#bill-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  billAction(async () => {
+    const label = $("#b-label").value.replace(/[\r\n]+/g, " ").trim().slice(0, 80);
+    const payee = $("#b-payee").value.trim();
+    const amount = String($("#b-amt").value).trim();
+    if (!label) throw new Error("Say what the bill is for.");
+    if (!isAddress(payee)) throw new Error("Pay to must be a 0x address on Arc.");
+    if (payee.toLowerCase() === selected.address.toLowerCase()) throw new Error("A bill can't pay the account itself.");
+    if (!/^\d{1,7}(\.\d{1,6})?$/.test(amount) || !(Number(amount) > 0)) throw new Error("The amount must be a positive USDC number.");
+    const dueDay = $("#b-due").value; if (!dueDay) throw new Error("Pick a due date.");
+    const due = new Date(`${dueDay}T12:00:00`); // noon local, so the date never shifts across time zones
+    const id = "b" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    $("#b-go").disabled = true;
+    try { await postBill(billMessage({ action: "add", id, payee: getAddress(payee), amount, due: due.toISOString(), label })); }
+    finally { $("#b-go").disabled = false; }
+    $("#b-label").value = ""; $("#b-payee").value = ""; $("#b-amt").value = "";
+    await loadBills(selected.address);
+    return `Bill added. From its next check (within five minutes) the agent keeps ${amount} USDC ready for it.`;
+  });
+});
+async function removeBill(b) {
+  if (!b) return;
+  billAction(async () => {
+    await postBill(billMessage({ action: "remove", id: b.id }));
+    await loadBills(selected.address);
+    return `Removed “${b.label}”. The agent no longer keeps cash for it.`;
+  });
+}
+async function payBill(b) {
+  if (!b) return;
+  const m = selected.address;
+  billAction(async () => {
+    const need = parseUnits(b.amount, 6);
+    const idle = await pub.readContract({ address: CFG.usdc, abi: ERC20, functionName: "balanceOf", args: [m] });
+    if (idle < need) {
+      // not enough idle cash yet: the owner pulls the difference out of the vault first (two confirmations)
+      const v = selected.venue?.address;
+      if (!v) throw new Error(`The account holds ${usd(idle)} USDC idle and nothing in a vault. Add funds first.`);
+      $("#bill-msg").textContent = `Only ${usd(idle)} USDC is idle. Confirm 1 of 2: take ${usd(need - idle, 6)} USDC out of ${venueName(v)}.`;
+      const data = encodeFunctionData({ abi: VAULT, functionName: "withdraw", args: [need - idle, m, m] });
+      try { await send(m, MANDATE, "ownerExecute", [v, 0n, data]); }
+      catch (e) { throw new Error(`${venueName(v)} would not pay out right now (${e.shortMessage || e.message}). Nothing was sent. Try again later, or pay a smaller bill from idle cash.`); }
+      $("#bill-msg").textContent = `Confirm 2 of 2: pay ${b.amount} USDC to ${short(b.payee)}.`;
+    } else $("#bill-msg").textContent = `Confirm in your wallet: pay ${b.amount} USDC to ${short(b.payee)}.`;
+    const r = await send(m, MANDATE, "withdraw", [need, b.payee]);
+    await refresh(m);
+    return `Paid “${b.label}”: ${b.amount} USDC to ${short(b.payee)}. Transaction ${r.transactionHash.slice(0, 10)}…`;
+  });
 }
 async function ownerAction(fn) {
   const msg = $("#oc-msg");
@@ -502,10 +636,12 @@ $("#oc-withdraw").onclick = () => ownerAction(() => send(selected.address, MANDA
 $("#oc-freeze").onclick = () => ownerAction(() => send(selected.address, MANDATE, "freeze"));
 $("#oc-unfreeze").onclick = () => ownerAction(() => send(selected.address, MANDATE, "unfreeze"));
 $("#oc-exit").onclick = () => ownerAction(async () => {
-  const shares = await pub.readContract({ address: CFG.vault, abi: VAULT, functionName: "balanceOf", args: [selected.address] });
+  const v = selected.venue?.address;
+  if (!v) throw new Error("This account has no vault.");
+  const shares = await pub.readContract({ address: v, abi: VAULT, functionName: "balanceOf", args: [selected.address] });
   if (shares === 0n) throw new Error("Nothing is in the vault.");
   const data = encodeFunctionData({ abi: VAULT, functionName: "redeem", args: [shares, selected.address, selected.address] });
-  await send(selected.address, MANDATE, "ownerExecute", [CFG.vault, 0n, data]);
+  await send(selected.address, MANDATE, "ownerExecute", [v, 0n, data]);
 });
 
 // ── create flow: seven wallet confirmations, shown as they happen ──
@@ -516,10 +652,13 @@ $("#create-form").addEventListener("submit", async (ev) => {
   const amount = parseUnits(String($("#c-amt").value), 6);
   const agent = $("#c-agent").value.trim();
   if (!/^0x[0-9a-fA-F]{40}$/.test(agent)) { msg.className = "note err"; msg.textContent = "The agent must be a 0x address."; return; }
+  // the valuer tells the mandate what the vault position is worth: it must point at this exact vault
+  const valuerVault = await pub.readContract({ address: CFG.valuer, abi: VALUER, functionName: "vault" }).catch(() => null);
+  if (!valuerVault || valuerVault.toLowerCase() !== CFG.vault.toLowerCase()) { msg.className = "note err"; msg.textContent = `New accounts are not open yet: the price reader for ${CFG.vaultName} is not deployed at ${CFG.valuer}.`; return; }
   const bal = await pub.readContract({ address: CFG.usdc, abi: ERC20, functionName: "balanceOf", args: [me] });
   if (bal < amount + 100000n) { msg.className = "note err"; msg.textContent = `This wallet holds ${usd(bal)} USDC on Arc. It needs ${usd(amount)} for the deposit plus about 0.10 for gas.`; return; }
   const limits = { maxDeployed: amount, maxDrawdownBps: Number($("#c-dd").value), maxLossPerCallBps: 10, expiry: BigInt(Math.floor(Date.now() / 1000) + Number($("#c-days").value) * 86400) };
-  const steps = ["Create your mandate account", "Allow the Galaxy USDC vault", "Allow deposits (to the account only)", "Allow withdrawals (to the account only)", "Allow redemptions (to the account only)", "Approve the USDC deposit", "Deposit into the account"];
+  const steps = ["Create your mandate account", `Allow ${CFG.vaultName}`, "Allow deposits (to the account only)", "Allow withdrawals (to the account only)", "Allow redemptions (to the account only)", "Approve the USDC deposit", "Deposit into the account"];
   const ol = $("#c-steps"); ol.hidden = false;
   const mark = (i, cls) => { ol.innerHTML = steps.map((s, j) => `<li class="${j < i ? "done" : j === i ? cls : ""}">${s}</li>`).join(""); };
   let i = 0; $("#c-go").disabled = true;
@@ -556,7 +695,7 @@ async function renderAgentStatus(s) {
   if (m.frozen) { el.className = "agentline bad"; el.innerHTML = `<b>The agent has stopped:</b> the account is frozen and waits for the owner's review. ${last}`; return; }
   if (m.blocked) {
     const illiquid = /illiquid|TransferReverted|NotEnoughLiquidity/i.test(m.blocked);
-    const why = illiquid ? `${esc(CFG.vaultName)} can't pay out right now: everything in the vault is lent out to borrowers` : `the move was refused (${esc(m.blocked)})`;
+    const why = illiquid ? `${esc(venueName(s.venue?.address))} can't pay out right now: everything in the vault is lent out to borrowers` : `the move was refused (${esc(m.blocked)})`;
     el.className = "agentline wait";
     el.innerHTML = `<b>The agent is waiting.</b> It wants to move cash back to the idle reserve, but ${why}. It tested the withdrawal first, so nothing was sent and no gas was spent. ${last}${m.backoffUntil ? ` Next try after ${hhmm(m.backoffUntil)}.` : ""}`;
     return;

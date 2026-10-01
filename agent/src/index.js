@@ -11,6 +11,7 @@ import { snapshot } from "./snapshot.js";
 import { planCalls, runCalls, writeRecord, postNote, poke } from "./executor.js";
 import { Indexer } from "./indexer.js";
 import { startServer } from "./server.js";
+import { Bills } from "./bills.js";
 
 const cfg = config();
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -40,14 +41,21 @@ const readPayables = () => {
 const account = await loadAccount(cfg);
 const { pub, wallet } = clients(cfg, account);
 const indexer = new Indexer({ pub, cfg, log });
+const known = (a) => indexer.db.mandates.some((x) => x.toLowerCase() === a.toLowerCase());
+// a bill can only be stored for an account our factory created (re-index once for a brand-new one)
+const bills = new Bills({ cfg, pub, isMandate: async (a) => known(a) || (await indexer.sync().catch(() => {}), known(a)) });
 const status = { agent: account.address, dryRun: cfg.dryRun, lastCycle: null, mandates: {} };
 
 log(`agent ${account.address} | factory ${cfg.factory} | venues ${cfg.venues.map((v) => v.name).join(", ") || "none"} | ${cfg.dryRun ? "DRY RUN" : "LIVE"}`);
 const once = process.argv.includes("--once");
-if (!once) startServer({ cfg, indexer, getStatus: () => status, log }); // a one-shot cycle needs no API
+if (!once) startServer({ cfg, indexer, bills, getStatus: () => status, log }); // a one-shot cycle needs no API
 
 async function cycleMandate(mandate) {
-  const snap = await snapshot({ pub, cfg, state, mandate, payables: readPayables() });
+  // operator-configured payables plus the owner's own signed bills that are still unpaid
+  const payables = { ...readPayables() };
+  const key0 = mandate.toLowerCase();
+  payables[key0] = [...(payables[key0] || []), ...bills.payables(mandate, indexer.eventsFor(mandate))];
+  const snap = await snapshot({ pub, cfg, state, mandate, payables });
   if (snap.agent.toLowerCase() !== account.address.toLowerCase()) return; // owner rotated the agent
   const decision = decide(snap, cfg.policy);
   const v = snap.venue;

@@ -33,7 +33,16 @@ export class Indexer {
     return all;
   }
 
-  async sync() {
+  /** Coalesce concurrent syncs (agent cycle + API requests) into one run. */
+  sync() {
+    this.inflight ||= this._sync().finally(() => {
+      this.inflight = null;
+      this.lastSync = Date.now();
+    });
+    return this.inflight;
+  }
+
+  async _sync() {
     const addrs = await this.mandates();
     const known = new Set(this.db.mandates.map((a) => a.toLowerCase()));
     const fresh = addrs.filter((a) => !known.has(a.toLowerCase()));
@@ -42,7 +51,7 @@ export class Indexer {
     this.db.mandates = addrs;
     if (!addrs.length) return this.save();
 
-    const head = await this.pub.getBlockNumber();
+    const head = await this.pub.getBlockNumber({ cacheTime: 0 }); // viem caches the head for 4s by default
     let from = BigInt(this.db.cursor);
     const seen = new Set(this.db.events.map((e) => `${e.tx}:${e.logIndex}`));
     while (from <= head) {

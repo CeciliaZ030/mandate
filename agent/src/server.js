@@ -1,21 +1,35 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { BillError } from "./bills.js";
 
 const RPC_ALLOW = new Set(["eth_chainId", "eth_blockNumber", "eth_call", "eth_getBalance", "eth_getCode", "eth_getLogs", "eth_getTransactionReceipt", "eth_getBlockByNumber"]);
 const MAX_LOG_RANGE = 10_000;
 
 /** Read-only API for the dashboard: indexed events, decision records, live snapshots, and an allow-listed RPC relay. */
-export function startServer({ cfg, indexer, getStatus, log }) {
+export function startServer({ cfg, indexer, bills, getStatus, log }) {
   const decisionsDir = path.join(cfg.dataDir, "decisions");
   const send = (res, code, body, type = "application/json") => {
     res.writeHead(code, {
       "content-type": type,
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "content-type",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
       "cache-control": "no-store",
     });
     res.end(typeof body === "string" ? body : JSON.stringify(body));
+  };
+
+  // Re-index at most every 5s (concurrent syncs coalesce), and right away when the dashboard
+  // says it just saw a transaction in a block the index hasn't reached (?block=N): a payment the
+  // owner just made then shows on the ledger and settles its bill without waiting for a cycle.
+  const freshen = async (url) => {
+    const want = Number(url.searchParams.get("block") || 0);
+    const behind = () => Number.isSafeInteger(want) && want > 0 && Number(indexer.db.cursor) <= want;
+    const stale = !indexer.lastSync || Date.now() - indexer.lastSync > 5_000;
+    const deadline = Date.now() + 8_000;
+    for (let i = 0; i < 2 && (i === 0 ? stale || behind() : behind()) && Date.now() < deadline; i++)
+      await Promise.race([indexer.sync().catch(() => {}), new Promise((r) => setTimeout(r, deadline - Date.now()))]);
   };
 
   const server = http.createServer(async (req, res) => {
@@ -26,7 +40,32 @@ export function startServer({ cfg, indexer, getStatus, log }) {
 
       if (url.pathname === "/api/events") {
         const m = url.searchParams.get("mandate");
+        await freshen(url);
         return send(res, 200, { cursor: indexer.db.cursor, events: m ? indexer.eventsFor(m) : indexer.db.events.slice(-2000) });
+      }
+
+      if (url.pathname === "/api/bills" && req.method === "GET") {
+        const m = url.searchParams.get("mandate");
+        if (!m || !/^0x[0-9a-fA-F]{40}$/.test(m)) return send(res, 400, { error: "mandate required" });
+        await freshen(url);
+        return send(res, 200, bills.list(m, indexer.eventsFor(m)));
+      }
+
+      if (url.pathname === "/api/bills" && req.method === "POST") {
+        let raw = "";
+        for await (const ch of req) {
+          raw += ch;
+          if (raw.length > 4_000) return send(res, 413, { error: "too large" });
+        }
+        try {
+          const bill = await bills.submit(JSON.parse(raw));
+          log(`  bill ${bill.removed ? "removed" : "added"}: ${bill.label} ${bill.amount} USDC to ${bill.payee} due ${bill.due}`);
+          const { message, signature, removeMessage, removeSignature, ...pub } = bill;
+          return send(res, 200, pub);
+        } catch (e) {
+          if (e instanceof BillError || e instanceof SyntaxError) return send(res, 400, { error: e.message });
+          throw e;
+        }
       }
 
       if (url.pathname === "/api/decisions") {
