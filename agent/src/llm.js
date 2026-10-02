@@ -60,7 +60,7 @@ export async function review(cfg, snap, decision) {
     if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${(await res.text()).replace(/\s+/g, " ").slice(0, 160)}`);
     const body = await res.json();
     const msg = body.choices?.[0]?.message ?? {};
-    const json = extractJson(msg.content) ?? extractJson(msg.reasoning_content) ?? extractJson(msg.reasoning);
+    const json = extractJson(msg.content); // the answer only, never scrape the thinking trace
     if (!json) {
       const fin = body.choices?.[0]?.finish_reason;
       const peek = String(msg.content ?? "").replace(/\s+/g, " ").slice(0, 120);

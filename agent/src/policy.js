@@ -132,10 +132,17 @@ export function decide(s, cfg = DEFAULTS) {
 
   const mandatory = cands.filter((x) => x.mandatory);
   if (mandatory.length) return result("MUST_ACT", mandatory, facts);
+  const lo = target > band ? target - band : 0n;
+  const hi = target + band;
+  const range = `${fmt(lo)} to ${fmt(hi)}`;
   const holdWhy =
-    !cands.length && gap > band
-      ? noEntry || "idle cash is above target but the venue cap or maxDeployed is already reached"
-      : "position is within band of target";
+    s.idle < lo
+      ? `do nothing: idle ${fmt(s.idle)} stays below the ${range} band (target ${fmt(target)}); saves gas but leaves the reserve short`
+      : s.idle > hi
+        ? cands.length
+          ? `do nothing: idle ${fmt(s.idle)} stays above the ${fmt(hi)} ceiling and earns no yield; saves gas`
+          : noEntry || `idle ${fmt(s.idle)} is above the ${fmt(hi)} ceiling but the venue cap or maxDeployed is already reached`
+        : `idle ${fmt(s.idle)} is within the ${range} band around the ${fmt(target)} target`;
   cands.push({ id: "hold", kind: "HOLD", amount: 0n, mandatory: false, why: holdWhy });
   return result(cands.length > 1 ? "DISCRETIONARY" : "HOLD", cands, facts);
 }
