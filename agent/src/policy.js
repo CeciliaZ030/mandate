@@ -85,6 +85,7 @@ export function decide(s, cfg = DEFAULTS) {
   let target = max(c.reserveFloor, (nav * c.reserveBps) / BPS);
   target = max(target, withBuffer(dueHorizon));
   target = min(target, nav);
+  let uneconomic = null; // set when a deploy can't pay back its own gas
   const band = max(c.minMove, (nav * c.bandBps) / BPS);
   const gap = s.idle - target;
   Object.assign(facts, { target, band, dueHorizon, dueUrgent });
@@ -116,7 +117,15 @@ export function decide(s, cfg = DEFAULTS) {
     const venueRoom = room(v.cap);
     const mandateRoom = room(s.limits.maxDeployed);
     const amt = min(gap, min(venueRoom, mandateRoom));
-    if (amt >= c.minMove) {
+    // break-even filter: a deploy must earn back its gas within minBreakevenDays
+    const gas = c.gasPerAction ?? 5_000n;
+    const days = BigInt(Math.max(1, Math.round(c.minBreakevenDays ?? 30)));
+    const apy = v.apyBps == null ? null : BigInt(Math.max(0, Math.round(v.apyBps)));
+    const earns = (x) => (apy === null ? null : (x * apy * days) / (BPS * 365n));
+    const pays = (x) => apy === null || earns(x) >= gas; // APY unknown: don't block
+    if (amt >= c.minMove && !pays(amt))
+      uneconomic = `skipped deploy of ${fmt(amt)}: gas ${fmt(gas)} exceeds its ${days}-day yield of ${fmt(earns(amt))} at ${(v.apyBps / 100).toFixed(2)}% APY`;
+    if (amt >= c.minMove && pays(amt)) {
       cands.push({
         id: "sweep_in",
         kind: "SWEEP_IN",
@@ -125,7 +134,7 @@ export function decide(s, cfg = DEFAULTS) {
         why: `idle ${fmt(s.idle)} exceeds the ${fmt(target)} target; ${fmt(amt)} can earn yield within caps`,
       });
       const half = amt / 2n;
-      if (half >= c.minMove)
+      if (half >= c.minMove && pays(half))
         cands.push({ id: "sweep_in_half", kind: "SWEEP_IN", amount: half, mandatory: false, why: "deploy half now, keep optionality" });
     }
   }
@@ -141,7 +150,7 @@ export function decide(s, cfg = DEFAULTS) {
       : s.idle > hi
         ? cands.length
           ? `do nothing: idle ${fmt(s.idle)} stays above the ${fmt(hi)} ceiling and earns no yield; saves gas`
-          : noEntry || `idle ${fmt(s.idle)} is above the ${fmt(hi)} ceiling but the venue cap or maxDeployed is already reached`
+          : noEntry || uneconomic || `idle ${fmt(s.idle)} is above the ${fmt(hi)} ceiling but the venue cap or maxDeployed is already reached`
         : `idle ${fmt(s.idle)} is within the ${range} band around the ${fmt(target)} target`;
   cands.push({ id: "hold", kind: "HOLD", amount: 0n, mandatory: false, why: holdWhy });
   return result(cands.length > 1 ? "DISCRETIONARY" : "HOLD", cands, facts);

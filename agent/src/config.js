@@ -78,6 +78,8 @@ export function config() {
       urgentHours: num(e.URGENT_HOURS, 24),
       payableBufferBps: BigInt(num(e.PAYABLE_BUFFER_BPS, 1000)),
       minMove: usdc(e.MIN_MOVE_USDC, 0.25),
+      gasPerAction: usdc(e.GAS_PER_ACTION_USDC, 0.005),
+      minBreakevenDays: num(e.MIN_BREAKEVEN_DAYS, 30),
       bandBps: BigInt(num(e.BAND_BPS, 500)),
       lossTripBps: BigInt(num(e.LOSS_TRIP_BPS, 5)),
       windDownHours: num(e.WIND_DOWN_HOURS, 24),
