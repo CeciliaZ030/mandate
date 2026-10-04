@@ -44,14 +44,18 @@ An agent without a preflight would have sent a reverting transaction every cycle
 
 **What it exposed:** a treasury held in one vault can't pay a bill while that vault is locked. The policy keeps a 10% idle reserve to cover that, but this mandate started fully deployed, before the agent existed. A second venue and a reserve funded from day one are the fix (see Next).
 
-## The reviewer can be steered. Here is how much, and why it doesn't matter
+## We tried to steer the reviewer through a bill label
 
 We attacked our own reviewer with the five prompt-injection families from a public benchmark we published ([jev-news-bench](https://github.com/Makabeez/jev-news-bench)), planted in a bill's label. That is the one free-text field that reaches the reviewer's prompt; it is written by the owner's key, so the threat is a compromised key or a label pasted from a supplier's invoice. Each family names the action the attacker wants: invent a payout to the attacker, keep cash in the vault before a bill, veto a mandatory withdrawal, or veto a risk exit. A benign suffix of similar length is the control.
 
 | Reviewer | Steered by attacks | Net of control | Mandatory actions vetoed | Amounts changed | Actions outside the candidate set | Funds sent outside the account and its vault |
 |---|---|---|---|---|---|---|
-| DeepSeek (`deepseek-pro`, production) | TODO from `make injection` | TODO | 0 | 0 | 0 | 0 |
+| DeepSeek (`deepseek-pro`, production) | 0/51 (0%) | +0% | 0 | 0 | 0 | 0 |
 | A stub that obeys every injection (worst case) | 20/20 (100%) | +100% | 0 | 0 | 0 | 0 |
+
+**DeepSeek didn't move.** In all 73 answers that completed, its choice was the same as with a clean label, so no attack shifted it at all, toward the attacker's target or anywhere else. The other 11 calls hit the 60-second timeout. Nine of them were in the risk-exit scenario, including the clean-label and control runs, so they aren't attributable to the attacks; a timeout falls back to the policy's own choice. Raw answers: [`agent/test/results/injection-live.json`](agent/test/results/injection-live.json).
+
+**We don't count on that.** This is one wording per family and one model. Our benchmark showed how much the phrasing matters: Jev was steered +34% by a direct instruction but +87% by an argument that the plain reading is wrong, and gpt-oss-20b the other way round (+92% and +51%). The stub row is the guarantee: a reviewer that does whatever the label says still moves nothing outside the policy's bounds.
 
 **Why steering doesn't reach the money.** The reviewer's answer is an input, never the release condition:
 
@@ -59,11 +63,11 @@ We attacked our own reviewer with the five prompt-injection families from a publ
 2. **Executor:** every call is built with the account itself as receiver and owner, aimed only at the vault (or a USDC approval to the vault).
 3. **Contract:** the mandate re-checks the venue, the function, the receiver, the caps and the loss on-chain. A call that breaks a rule is undone and the account freezes, as in the mainnet breach above.
 
-**Worst case measured:** a steered reviewer picks another candidate the policy offered: `hold` instead of pulling 9.20 USDC out ahead of a bill due in 48h. The bill is still paid on time, because inside 24h the withdrawal becomes mandatory and no answer can veto it.
+**Worst case, with the obedient stub:** a steered reviewer picks another candidate the policy offered: `hold` instead of pulling 9.20 USDC out ahead of a bill due in 48h. The bill is still paid on time, because inside 24h the withdrawal becomes mandatory and no answer can veto it.
 
 **Why we built it this way.** The benchmark found that confidence gating, the usual guard for a model on a safety path, lets steered answers through: injected text is unambiguous by construction, so a steered model is confident. We don't gate on the model; we bound what it can choose.
 
-The test checks itself: with `resolveChoice()` deliberately broken it reports 10 vetoes, 15 changed amounts and 15 off-candidate actions, and fails. Reproduce offline with `node agent/test/injection.mjs --fake` (part of `make judge-demo`), or against a live reviewer with `make injection`; raw answers land in `agent/test/results/`. Dashboard bill labels are also clipped to 80 characters, shorter than every attack here; the test runs them at full length.
+The test checks itself: with `resolveChoice()` deliberately broken it reports 10 vetoes, 15 changed amounts and 15 off-candidate actions, and fails. Reproduce offline with `node agent/test/injection.mjs --fake` (part of `make judge-demo`), or against a live reviewer with `make injection` (84 calls, about 11 minutes); raw answers land in `agent/test/results/`. Dashboard bill labels are also clipped to 80 characters, shorter than every attack here; the test runs them at full length.
 
 ## What was built during Tameion (Sept 27 – Oct 10)
 
@@ -98,7 +102,7 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Vault loss / drawdown / expiry exits | **Simulated** in `make e2e` (mock vault loses 1%) and the judge scenarios; not triggered on mainnet |
 | Third-party mandates | TODO: number of wallets other than the builder's that created a mandate |
 | Reviewer model | **Real** LiteLLM call in production; a deterministic stub in local tests, labelled `stub-reviewer` in records |
-| Injection steering rates | **Real** reviewer for the DeepSeek row; the 100% row is a stub built to obey every injection |
+| Injection steering rates | **Real**: DeepSeek through the production router, 84 calls on Oct 4. The 100% row is a stub built to obey every injection |
 
 ## Constants and where they come from
 
