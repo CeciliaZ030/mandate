@@ -37,8 +37,9 @@ export function extractJson(text) {
   return null;
 }
 
-export async function review(cfg, snap, decision) {
-  if (!cfg.llm.baseUrl || decision.candidates.length < 2) return null;
+/** force: ask even when there is nothing to choose (the injection test measures what a steered reviewer would do on mandatory actions). */
+export async function review(cfg, snap, decision, { force = false } = {}) {
+  if (!cfg.llm.baseUrl || (!force && decision.candidates.length < 2)) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), cfg.llm.timeoutMs);
   try {

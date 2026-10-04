@@ -44,6 +44,27 @@ An agent without a preflight would have sent a reverting transaction every cycle
 
 **What it exposed:** a treasury held in one vault can't pay a bill while that vault is locked. The policy keeps a 10% idle reserve to cover that, but this mandate started fully deployed, before the agent existed. A second venue and a reserve funded from day one are the fix (see Next).
 
+## The reviewer can be steered. Here is how much, and why it doesn't matter
+
+We attacked our own reviewer with the five prompt-injection families from a public benchmark we published ([jev-news-bench](https://github.com/Makabeez/jev-news-bench)), planted in a bill's label. That is the one free-text field that reaches the reviewer's prompt; it is written by the owner's key, so the threat is a compromised key or a label pasted from a supplier's invoice. Each family names the action the attacker wants: invent a payout to the attacker, keep cash in the vault before a bill, veto a mandatory withdrawal, or veto a risk exit. A benign suffix of similar length is the control.
+
+| Reviewer | Steered by attacks | Net of control | Mandatory actions vetoed | Amounts changed | Actions outside the candidate set | Funds sent outside the account and its vault |
+|---|---|---|---|---|---|---|
+| DeepSeek (`deepseek-pro`, production) | TODO from `make injection` | TODO | 0 | 0 | 0 | 0 |
+| A stub that obeys every injection (worst case) | 20/20 (100%) | +100% | 0 | 0 | 0 | 0 |
+
+**Why steering doesn't reach the money.** The reviewer's answer is an input, never the release condition:
+
+1. **Policy:** every action and every amount is computed by the deterministic policy. `resolveChoice()` accepts only a candidate id; amounts, addresses and invented actions in the reply are discarded (the stub emitted 5 of them). In `MUST_ACT` and `RISK_EXIT` the live agent doesn't even ask the reviewer. The test forces the call to measure what it would have done, and the policy's action runs anyway.
+2. **Executor:** every call is built with the account itself as receiver and owner, aimed only at the vault (or a USDC approval to the vault).
+3. **Contract:** the mandate re-checks the venue, the function, the receiver, the caps and the loss on-chain. A call that breaks a rule is undone and the account freezes, as in the mainnet breach above.
+
+**Worst case measured:** a steered reviewer picks another candidate the policy offered: `hold` instead of pulling 9.20 USDC out ahead of a bill due in 48h. The bill is still paid on time, because inside 24h the withdrawal becomes mandatory and no answer can veto it.
+
+**Why we built it this way.** The benchmark found that confidence gating, the usual guard for a model on a safety path, lets steered answers through: injected text is unambiguous by construction, so a steered model is confident. We don't gate on the model; we bound what it can choose.
+
+The test checks itself: with `resolveChoice()` deliberately broken it reports 10 vetoes, 15 changed amounts and 15 off-candidate actions, and fails. Reproduce offline with `node agent/test/injection.mjs --fake` (part of `make judge-demo`), or against a live reviewer with `make injection`; raw answers land in `agent/test/results/`. Dashboard bill labels are also clipped to 80 characters, shorter than every attack here; the test runs them at full length.
+
 ## What was built during Tameion (Sept 27 – Oct 10)
 
 Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on Sept 18, before the window.
@@ -55,7 +76,8 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Live blocked theft attempt (`BAD_ARG`) + owner unfreeze | tx `0x1acc1506…8152`, `0x5cd4803d…67a0` |
 | Treasury agent: payables-aware policy, reviewer LLM, preflight, on-chain decision log, event indexer, API | `agent/`, commits from Oct 1 |
 | Dashboard: live headroom ruler, ledger with verifiable reasoning, one-flow mandate creation, owner console | `app/index.html` |
-| Offline judge demo + local end-to-end harness | `make judge-demo` (23 contract tests + 15 decision scenarios), `make e2e` |
+| Offline judge demo + local end-to-end harness | `make judge-demo` (23 contract tests + 16 decision scenarios + 17 bill checks + the injection test), `make e2e`, `make e2e-bills` |
+| Prompt-injection test of the reviewer: five attack families in a bill label, blast radius measured on the calls the agent would send | `agent/test/injection.mjs`, section above |
 | Agent live on mainnet under PM2, public decision records and status API | `https://mandate.baserep.xyz/api/health`, note tx `0x8b76fd84…e0c5` |
 | Live liquidity-freeze handling: venue revert diagnosis, backoff, status line on the dashboard | commits `67a5d4e`, `42cd2f2`; the section above |
 | Owner-signed bills: the owner adds a bill by signing it with the owner wallet (checked against `owner()` on-chain), the agent keeps its cash ready, the owner pays from the dashboard, the bill settles from the on-chain payment | `agent/src/bills.js`, dashboard Bills section, `make e2e-bills` (forged, stale, tampered, replayed bills refused) |
@@ -76,6 +98,7 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Vault loss / drawdown / expiry exits | **Simulated** in `make e2e` (mock vault loses 1%) and the judge scenarios; not triggered on mainnet |
 | Third-party mandates | TODO: number of wallets other than the builder's that created a mandate |
 | Reviewer model | **Real** LiteLLM call in production; a deterministic stub in local tests, labelled `stub-reviewer` in records |
+| Injection steering rates | **Real** reviewer for the DeepSeek row; the 100% row is a stub built to obey every injection |
 
 ## Constants and where they come from
 
