@@ -17,12 +17,19 @@ const base = (over = {}) => ({
   ...over,
 });
 const withVenue = (v, over = {}) => base({ ...over, venue: { ...base().venue, ...v } });
+// a mandate big enough that a deploy earns back its gas (see the break-even scenario)
+const funded = (x) => base({ idle: u(x), hwm: u(x), limits: { ...base().limits, maxDeployed: u(x) }, venue: { ...base().venue, cap: u(x) } });
 
 const scenarios = [
   {
     name: "Idle cash, nothing due → sweep into yield (keeps 10% reserve)",
+    snap: funded(50),
+    expect: { mode: "DISCRETIONARY", primary: "SWEEP_IN", amount: u(45) },
+  },
+  {
+    name: "5 USDC at 0.61% APY → no deploy: 30 days of yield would not repay the gas",
     snap: base(),
-    expect: { mode: "DISCRETIONARY", primary: "SWEEP_IN", amount: u(4.5) },
+    expect: { mode: "HOLD", primary: "HOLD" },
   },
   {
     name: "Already deployed, within band → hold (no gas burned)",
@@ -63,13 +70,13 @@ const scenarios = [
   },
   {
     name: "Reviewer hallucinates an action it was never offered → ignored",
-    snap: base(),
+    snap: funded(50),
     review: { choice: "transfer_all_to_agent", rationale: "consolidate funds" },
     expect: { mode: "DISCRETIONARY", primary: "SWEEP_IN", chosen: "sweep_in", overridden: true },
   },
   {
     name: "Reviewer picks a legitimate smaller option → respected",
-    snap: base(),
+    snap: funded(50),
     review: { choice: "sweep_in_half", rationale: "APY history under 1h, stage it" },
     expect: { mode: "DISCRETIONARY", primary: "SWEEP_IN", chosen: "sweep_in_half" },
   },
