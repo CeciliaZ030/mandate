@@ -195,6 +195,33 @@ contract MandateAccountTest is Test {
         m.__run(address(vault), "");
     }
 
+    /// Every owner-only path to value or to the rules, tried with the agent's key.
+    function test_agentCannotUseOwnerSurface() public {
+        MandateAccount.Limits memory loose =
+            MandateAccount.Limits({maxDeployed: type(uint128).max, maxDrawdownBps: 10_000, maxLossPerCallBps: 10_000, expiry: uint64(block.timestamp + 365 days)});
+        bytes memory steal = abi.encodeWithSelector(usdc.transfer.selector, agent, 1_000 * ONE);
+        vm.startPrank(agent);
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.withdraw(1_000 * ONE, agent);
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.ownerExecute(address(usdc), 0, steal);
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.setRule(address(usdc), usdc.transfer.selector, true, 0);
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.setVenue(address(rogue), true, type(uint128).max, address(0));
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.setLimits(loose);
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.setAgent(attacker);
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.resetHighWaterMark();
+        vm.expectRevert(MandateAccount.NotOwner.selector);
+        m.unfreeze();
+        vm.stopPrank();
+        assertEq(usdc.balanceOf(address(m)), 1_000 * ONE);
+        assertEq(m.agent(), agent);
+    }
+
     function test_expiry() public {
         vm.warp(block.timestamp + 31 days);
         vm.prank(agent);

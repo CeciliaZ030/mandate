@@ -22,7 +22,7 @@
 
 ```bash
 git clone https://github.com/Makabeez/mandate && cd mandate
-make judge-demo     # no wallet, no RPC, no API key: 23 contract tests + 16 agent decision scenarios + 17 bill checks + a prompt-injection test
+make judge-demo     # no wallet, no RPC, no API key: 24 contract tests + 16 agent decision scenarios + 17 bill checks + a prompt-injection test
 ```
 
 For the full loop on a local chain (real contracts, the real agent process, a stub reviewer): `cd agent && npm install && cd .. && make e2e`. For the owner's bill flow (sign a bill, the agent raises cash, the owner pays, the bill settles, forged and replayed bills refused): `make e2e-bills`.

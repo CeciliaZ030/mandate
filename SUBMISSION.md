@@ -1,6 +1,6 @@
 # Tameion submission: Mandate
 
-> Draft. Fill the `TODO` lines on the day you submit; everything else is verified on mainnet as of Oct 1, 2026.
+> Draft. Fill the `TODO` lines on the day you submit; everything else is verified on mainnet as of Oct 6, 2026.
 
 ## The problem, in two sentences
 
@@ -39,6 +39,7 @@ What the agent did, all verifiable:
 | Simulated the withdrawal, saw the vault refuse, sent nothing | same record: `"venue rejected the call: vault illiquid: TransferReverted() (market fully borrowed)"` |
 | Wrote the decision and the refusal on-chain | note tx `0x8b76fd84b15943df011be4b178dca796a426c11b9302815dc1aa3eae8fa0e0c5`, block 23722426; its content hash equals the keccak of the served record |
 | Stopped retrying every 5 minutes; tries once an hour, no new notes, no gas | live status on the dashboard and at `/api/health` |
+| When the vault paid out again, executed the same withdrawal on its own: 0.500009 USDC back to the idle reserve, balance 5.000090 before and after (no loss) | Oct 1, 23:35 UTC: withdraw tx `0x3a64c17a74cb40c9c460a0d6fe51d2845e0917a7f31698de3df0469f4735660b`; note tx `0x3fd0610b29eb0a88f3644a1042381544b2241fd4a8526b27b6352d129e87253a`, whose hash equals decision record `0xd152bf01…2a35` |
 
 An agent without a preflight would have sent a reverting transaction every cycle. One that trusted `maxWithdraw` would have concluded nothing was there.
 
@@ -69,7 +70,34 @@ We attacked our own reviewer with the five prompt-injection families from a publ
 
 The test checks itself: with `resolveChoice()` deliberately broken it reports 10 vetoes, 15 changed amounts and 15 off-candidate actions, and fails. Reproduce offline with `node agent/test/injection.mjs --fake` (part of `make judge-demo`), or against a live reviewer with `make injection` (84 calls, about 11 minutes); raw answers land in `agent/test/results/`. Dashboard bill labels are also clipped to 80 characters, shorter than every attack here; the test runs them at full length.
 
-## What was built during Tameion (Sept 27 – Oct 10)
+## Every path money can take, and what blocks it
+
+aomi's research on agent transactions ([Three Gates from Intent to Settlement](https://aomi.dev/research/three-gates-onchain)) says a security evaluation should "enumerate every path to value movement, identify the authority that can block each path and test the claimed coverage." Mandate is their second gate, a mandate enforced on-chain by the account contract, with the agent's runtime in front of it. Here is every path, with the test or mainnet transaction that shows it closed.
+
+| # | Path to value | Who can try it | What blocks it | Proof |
+|---|---|---|---|---|
+| 1 | Send USDC from the account to any address | agent key | Contract: on USDC the agent may only call `approve` (`BAD_APPROVE`) | `test_blocks_directUsdcTransfer` |
+| 2 | Approve USDC to anyone but the vault, or above the vault's cap | agent key | Contract: `BAD_APPROVE` | `test_blocks_approveToNonVenue`, `test_blocks_approveAboveVenueCap` |
+| 3 | Deposit into the vault for someone else | agent key | Contract: the receiver must be the account (`BAD_ARG`) | `test_blocks_depositToAttackerReceiver`, `testFuzz_foreignReceiverAlwaysBlocked` (512 random receivers); on mainnet, breach tx `0x1acc1506…8152` |
+| 4 | Withdraw or redeem vault shares to someone else | agent key | Contract: receiver and owner must be the account (`BAD_ARG`) | `test_blocks_redeemToAttacker` |
+| 5 | Transfer vault shares out, or call any vault function not allowlisted | agent key | Contract: `NOT_ALLOWED` | `test_blocks_unlistedSelectorOnVenue` |
+| 6 | Call any other contract | agent key | Contract: `NOT_ALLOWED` | `test_blocks_unlistedVenue` |
+| 7 | Lose money inside the agent's own call (skimming vault, bad price) | agent key, a venue | Contract: loss per call (10 bps), vault cap, total cap, drawdown. The call is undone and the account freezes | `test_lossPerCall_skimmingVenue`, `test_venueCap_rollsBackAndFreezes` |
+| 8 | Lose money between calls (market) | anyone | `poke()`, callable by anyone, freezes the account past the drawdown line; the owner can still exit | `test_marketDrawdown_pokeFreezes_ownerExits` |
+| 9 | Use the owner's functions: `withdraw`, `ownerExecute`, `setRule`, `setVenue`, `setLimits`, `setAgent`, `unfreeze` | agent key | Contract: `NotOwner` | `test_agentCannotUseOwnerSurface` |
+| 10 | Act after the mandate expires, or while frozen | agent key | Contract: reverts | `test_expiry` |
+| 11 | Steer the reviewer through a bill label (prompt injection) | whoever writes the label | Runtime: the reviewer can only pick a candidate id; amounts come from the policy; every call is built with the account as receiver | Injection test above: DeepSeek 0/51; an obedient stub 20/20 steered, zero blast radius |
+| 12 | A bug in the agent builds a call that would fail | agent runtime | Runtime: every call is simulated first and not sent if it would fail; anything that does reach the contract meets rows 1–10 | Mainnet note tx `0x8b76fd84…e0c5` (withdrawal refused in simulation while the vault was illiquid) |
+
+**What the mandate does not cover, and why:**
+
+- **The owner's own key.** The owner can withdraw anywhere and call anything through `ownerExecute`. That is the point: the owner is the principal, and withdrawals must work even when the account is frozen. Protecting the owner's key is a wallet question (aomi's first gate), outside the account.
+- **The vault's own code.** The account approves the vault up to its cap and holds its shares, so a broken or malicious vault could lose them. The owner chooses the vault; the cap bounds the exposure; row 7 catches a loss during the agent's call and row 8 one between calls.
+- **A stolen agent key.** It can only do what rows 1–10 allow: move money between the account and the vault, within the caps. The worst it can do is waste its own gas, or trigger a breach on purpose to freeze the account; the owner then unfreezes and replaces the agent with `setAgent`.
+- **No wallet-policy gate yet.** The agent signs with a local keystore, so nothing independent reviews its transactions before signing. Routing its signing through a Circle Wallet, for example via aomi's execution kit, would add that gate in front of the contract. That is the next step.
+- **No block-builder gate.** Arc's ordering is not under our control; the loss-per-call check bounds what a manipulated price can cost in any one call.
+
+## What was built during Tameion (Sept 27 – Oct 17)
 
 Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on Sept 18, before the window.
 
@@ -78,10 +106,12 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Mainnet deployment of factory and first mandate (Sept 30) | factory deploy tx `0x128abd1c…`, block 23603562 |
 | Live agent deposit into Galaxy USDC (Morpho) | tx `0xd9614d93…c6c2` |
 | Live blocked theft attempt (`BAD_ARG`) + owner unfreeze | tx `0x1acc1506…8152`, `0x5cd4803d…67a0` |
+| Live agent withdrawal on mainnet, executed on its own after the vault became liquid again | tx `0x3a64c17a…660b` (Oct 1) |
 | Treasury agent: payables-aware policy, reviewer LLM, preflight, on-chain decision log, event indexer, API | `agent/`, commits from Oct 1 |
 | Dashboard: live headroom ruler, ledger with verifiable reasoning, one-flow mandate creation, owner console | `app/index.html` |
-| Offline judge demo + local end-to-end harness | `make judge-demo` (23 contract tests + 16 decision scenarios + 17 bill checks + the injection test), `make e2e`, `make e2e-bills` |
+| Offline judge demo + local end-to-end harness | `make judge-demo` (24 contract tests + 16 decision scenarios + 17 bill checks + the injection test), `make e2e`, `make e2e-bills` |
 | Prompt-injection test of the reviewer: five attack families in a bill label, blast radius measured on the calls the agent would send | `agent/test/injection.mjs`, section above |
+| Every path to value movement mapped to what blocks it, plus a test that the agent's key is refused on every owner function | section above, `test_agentCannotUseOwnerSurface` |
 | Agent live on mainnet under PM2, public decision records and status API | `https://mandate.baserep.xyz/api/health`, note tx `0x8b76fd84…e0c5` |
 | Live liquidity-freeze handling: venue revert diagnosis, backoff, status line on the dashboard | commits `67a5d4e`, `42cd2f2`; the section above |
 | Owner-signed bills: the owner adds a bill by signing it with the owner wallet (checked against `owner()` on-chain), the agent keeps its cash ready, the owner pays from the dashboard, the bill settles from the on-chain payment | `agent/src/bills.js`, dashboard Bills section, `make e2e-bills` (forged, stale, tampered, replayed bills refused) |
@@ -96,11 +126,11 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Agent deposit into a live Morpho vault on Arc | **Real** |
 | Breach blocked on mainnet, funds untouched, account frozen and unfrozen | **Real**, triggered on purpose by the builder to prove the guard |
 | Agent running on mainnet, decisions and notes | **Real** since Oct 1, 14:19 UTC (note tx `0x8b76fd84…e0c5`) |
-| Agent withdrawals on mainnet | **Not yet**: the vault has been illiquid since the agent went live; it will execute on its own when liquidity returns. TODO: add the tx if it happens before submission |
+| Agent withdrawals on mainnet | **Real**: 0.500009 USDC on Oct 1, 23:35 UTC, executed by the agent on its own once the vault paid out again (tx `0x3a64c17a…660b`) |
 | Liquidity freeze | **Real**, not staged: a third-party Morpho market reached full utilization |
 | Payables schedule | Owner-signed bills entered in the dashboard; the first mandate's schedule was illustrative. No third-party company data |
 | Vault loss / drawdown / expiry exits | **Simulated** in `make e2e` (mock vault loses 1%) and the judge scenarios; not triggered on mainnet |
-| Third-party mandates | TODO: number of wallets other than the builder's that created a mandate |
+| Third-party mandates | **None yet** as of Oct 6: the factory holds one mandate, the builder's. TODO: update before the final submission |
 | Reviewer model | **Real** LiteLLM call in production; a deterministic stub in local tests, labelled `stub-reviewer` in records |
 | Injection steering rates | **Real**: DeepSeek through the production router, 84 calls on Oct 4. The 100% row is a stub built to obey every injection |
 
