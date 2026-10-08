@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [lib]
+path = "aomi/mandate-agent/src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

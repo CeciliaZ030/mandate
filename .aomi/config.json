@@ -2,6 +2,6 @@
   "version": 1,
   "platform": "community",
   "applications": [
-    "aomi/mandate-agent/aomi.toml"
+    "aomi.toml"
   ]
 }
