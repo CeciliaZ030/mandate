@@ -81,6 +81,16 @@ const scenarios = [
     expect: { mode: "DISCRETIONARY", primary: "SWEEP_IN", chosen: "sweep_in_half" },
   },
   {
+    name: "Circle's Earn Kit flags the vault low_liquidity → no new deposit",
+    snap: { ...funded(50), venue: { ...funded(50).venue, circle: { warnings: ["low_liquidity"], available: "0", totalDeposits: "89725540", liquidPct: 0 } } },
+    expect: { mode: "HOLD", primary: "HOLD" },
+  },
+  {
+    name: "Circle flag never blocks the withdrawal a bill needs",
+    snap: withVenue({ value: u(4.5), shares: u(4.5), circle: { warnings: ["low_liquidity"], available: "0", totalDeposits: "89725540", liquidPct: 0 } }, { idle: u(0.5), payables: [{ id: "inv-1", label: "contractor", amount: u(1.5), dueAt: T0 + 6 * H }] }),
+    expect: { mode: "MUST_ACT", primary: "SWEEP_OUT", amount: u(1.15) },
+  },
+  {
     name: "Venue cap already full → never exceeds the on-chain cap",
     snap: withVenue({ value: u(5), shares: u(5), cap: u(5) }, { idle: u(3), hwm: u(8), limits: { ...base().limits, maxDeployed: u(5) } }),
     expect: { mode: "HOLD", primary: "HOLD" },

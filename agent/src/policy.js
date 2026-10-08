@@ -27,6 +27,7 @@ export const DEFAULTS = {
   drawdownTripFrac: 2n, // exit at 1/2 of the mandate's drawdown limit
   windDownHours: 24, // exit venue this long before mandate expiry
   exitDustUnits: 1_000n, // withdrawals within 0.001 USDC of the position => redeem all
+  circleBlock: ["low_liquidity", "not_whitelisted"], // Circle Earn Kit warnings that stop new deposits
   capHeadroomBps: 10n, // stay 0.1% (min 0.01 USDC) under caps: interest accrues between preflight and inclusion
   capHeadroomMin: 10_000n,
 };
@@ -36,7 +37,8 @@ export const DEFAULTS = {
  *   now (unix s), idle, hwm, frozen,
  *   limits {maxDeployed, maxDrawdownBps, maxLossPerCallBps, expiry},
  *   venue: null | { address, name, cap, active, value, shares, withdrawable|null,
- *                   sharePriceDropBps, apyBps|null },
+ *                   sharePriceDropBps, apyBps|null,
+ *                   circle?: null | { warnings[], available, liquidPct, circleGuarded, ... } },
  *   payables: [{ id, label, amount, dueAt }]
  * }
  */
@@ -53,6 +55,8 @@ export function decide(s, cfg = DEFAULTS) {
   const facts = { nav, idle: s.idle, deployed: v.value };
   const ddBpsNow = s.hwm > 0n && s.hwm > nav ? ((s.hwm - nav) * BPS) / s.hwm : 0n;
   const hoursLeft = (s.limits.expiry - s.now) / 3600;
+  // Circle's own risk warnings on this vault (Earn Kit); unknown => no opinion
+  const circleFlags = (v.circle?.warnings ?? []).filter((w) => (c.circleBlock ?? []).includes(w));
   // conditions under which the agent must not (re-)enter the venue, deployed or not
   const noEntry =
     ddBpsNow * c.drawdownTripFrac > BigInt(s.limits.maxDrawdownBps)
@@ -61,7 +65,9 @@ export function decide(s, cfg = DEFAULTS) {
         ? `mandate expires in ${hoursLeft.toFixed(1)}h; no new deployments`
         : s.cooldownUntil && s.now < s.cooldownUntil
           ? `cooling down after a risk exit until ${new Date(s.cooldownUntil * 1000).toISOString()}`
-          : null;
+          : circleFlags.length
+            ? `Circle flags ${v.name} (${circleFlags.join(", ")}); no new deposits until it clears`
+            : null;
 
   // ── hard risk exits: mandatory, the LLM cannot veto them ──
   if (v.value > 0n) {

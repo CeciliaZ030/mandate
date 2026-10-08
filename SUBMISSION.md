@@ -94,7 +94,7 @@ aomi's research on agent transactions ([Three Gates from Intent to Settlement](h
 - **The owner's own key.** The owner can withdraw anywhere and call anything through `ownerExecute`. That is the point: the owner is the principal, and withdrawals must work even when the account is frozen. Protecting the owner's key is a wallet question (aomi's first gate), outside the account.
 - **The vault's own code.** The account approves the vault up to its cap and holds its shares, so a broken or malicious vault could lose them. The owner chooses the vault; the cap bounds the exposure; row 7 catches a loss during the agent's call and row 8 one between calls.
 - **A stolen agent key.** It can only do what rows 1–10 allow: move money between the account and the vault, within the caps. The worst it can do is waste its own gas, or trigger a breach on purpose to freeze the account; the owner then unfreezes and replaces the agent with `setAgent`.
-- **No wallet-policy gate yet.** The agent signs with a local keystore, so nothing independent reviews its transactions before signing. Routing its signing through a Circle Wallet, for example via aomi's execution kit, would add that gate in front of the contract. That is the next step.
+- **No wallet-policy gate yet.** The agent signs with a local keystore, so nothing independent reviews its transactions before signing. aomi's Execution Kit doesn't change that: it is non-custodial and the agent keeps its key. Circle Agent Wallets are the candidate: per-wallet policies (contract allowlist, USDC caps) whose changes are confirmed by an email code, so a compromised agent server can't relax them. We have not yet confirmed that an Agent Wallet can sign an arbitrary contract call on Arc, which is what the agent's `execute()` needs.
 - **No block-builder gate.** Arc's ordering is not under our control; the loss-per-call check bounds what a manipulated price can cost in any one call.
 
 ## What was built during Tameion (Sept 27 – Oct 17)
@@ -109,9 +109,10 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Live agent withdrawal on mainnet, executed on its own after the vault became liquid again | tx `0x3a64c17a…660b` (Oct 1) |
 | Treasury agent: payables-aware policy, reviewer LLM, preflight, on-chain decision log, event indexer, API | `agent/`, commits from Oct 1 |
 | Dashboard: live headroom ruler, ledger with verifiable reasoning, one-flow mandate creation, owner console | `app/index.html` |
-| Offline judge demo + local end-to-end harness | `make judge-demo` (24 contract tests + 16 decision scenarios + 17 bill checks + the injection test), `make e2e`, `make e2e-bills` |
+| Offline judge demo + local end-to-end harness | `make judge-demo` (24 contract tests + 18 decision scenarios + 17 bill checks + the injection test), `make e2e`, `make e2e-bills` |
 | Prompt-injection test of the reviewer: five attack families in a bill label, blast radius measured on the calls the agent would send | `agent/test/injection.mjs`, section above |
 | Every path to value movement mapped to what blocks it, plus a test that the agent's key is refused on every owner function | section above, `test_agentCannotUseOwnerSurface` |
+| Circle Earn Kit as a live risk input: no new deposits into a vault Circle flags; signals in the prompt, the decision record and the dashboard; new mandates moved to the vault Circle lists clean | `agent/src/circle.js`, `/api/vaults`, two judge scenarios |
 | Agent live on mainnet under PM2, public decision records and status API | `https://mandate.baserep.xyz/api/health`, note tx `0x8b76fd84…e0c5` |
 | Live liquidity-freeze handling: venue revert diagnosis, backoff, status line on the dashboard | commits `67a5d4e`, `42cd2f2`; the section above |
 | Owner-signed bills: the owner adds a bill by signing it with the owner wallet (checked against `owner()` on-chain), the agent keeps its cash ready, the owner pays from the dashboard, the bill settles from the on-chain payment | `agent/src/bills.js`, dashboard Bills section, `make e2e-bills` (forged, stale, tampered, replayed bills refused) |
@@ -151,7 +152,8 @@ At the default cadence the agent spends about 0.0028 USDC a day on upkeep (one `
 
 ## Next
 
-- A second venue per mandate, so one illiquid vault can't trap the whole reserve. (New mandates already default to the vault that stayed liquid.)
+- A second venue per mandate, so one illiquid vault can't trap the whole reserve. Circle's Earn Kit already tells the agent which vaults have liquidity; with two venues it could move the reserve to the liquid one.
+- A wallet-policy gate on the agent's key (Circle Agent Wallets), once contract calls through it are confirmed on Arc.
 - Fund the idle reserve at creation, not on the agent's first cycle.
 - Payouts: the agent keeps bill cash ready, but only the owner's wallet can pay a bill. Allowlisted payees with per-payee caps, enforced by the contract, would let the agent pay on the due date by itself.
 
@@ -159,7 +161,10 @@ At the default cadence the agent spends about 0.0028 USDC a day on upkeep (one `
 
 - Arc mainnet: settlement, deterministic finality for limit checks, USDC as gas.
 - USDC's ERC-20 interface at `0x3600…0000` for all accounting.
-- Not used: Gateway, App Kits, Agent Stack, Arc Studio. TODO: if time allows, one of these; otherwise say so.
+- **Earn Kit** (App Kit SDK, `@circle-fin/earn-kit`): every 10 minutes the agent reads Circle's view of each lending vault on Arc: available liquidity, APY and Circle's own risk warnings. A vault Circle flags `low_liquidity` or `not_whitelisted` gets no new deposits until the flag clears. Withdrawals are never blocked by it, and if Circle's service is down the agent behaves as before. The same signals go into the reviewer's prompt and the decision record, and the dashboard shows them (served at `/api/vaults`). Earn Kit also stands in for the vault's APY until the agent has an hour of its own share-price history.
+- **What it caught on Oct 8:** Galaxy USDC, where the live mandate holds 4.5 USDC, was flagged `low_liquidity` (0.18 USDC available out of 89.7M). On real mainnet data the agent now holds, and with 50 USDC of extra idle cash it would still refuse a deposit, citing Circle's flag. Circle also flagged `not_whitelisted` on `0xbeef0007`, the vault the dashboard had picked for new mandates; new mandates now default to `0xbeef0016`, which Circle lists with no warnings (Circle-guarded, about 160k USDC available).
+- **Why not Earn Kit's deposit:** it signs from its own wallet adapter, and Mandate's money has to leave through the account's `execute()`, where the contract checks it. We use Earn Kit for what it knows about vaults, never to move funds.
+- **Checked, not used:** aomi's Execution Kit (non-custodial: the agent keeps its key, so it adds no independent gate, confirmed by the aomi team on Oct 8) and Circle Agent Wallets (see "No wallet-policy gate yet" above). Gateway and Arc Studio are not used.
 
 ## Traction
 

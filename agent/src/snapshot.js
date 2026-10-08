@@ -3,7 +3,7 @@ import { ERC20_ABI, ERC4626_ABI, MANDATE_ABI } from "./chain.js";
 const ONE_SHARE = 10n ** 18n;
 
 /** Read everything the policy needs for one mandate. */
-export async function snapshot({ pub, cfg, state, mandate, payables }) {
+export async function snapshot({ pub, cfg, state, mandate, payables, circle = null }) {
   const m = { address: mandate, abi: MANDATE_ABI };
   const read = (functionName, args = []) => pub.readContract({ ...m, functionName, args });
 
@@ -41,7 +41,14 @@ export async function snapshot({ pub, cfg, state, mandate, payables }) {
       withdrawable = mw === 0n && value > 0n ? null : mw;
     } catch {}
     const { dropBps, apyBps } = trackSharePrice(state, addr, now, sharePrice);
-    venue = { address: addr, name: known.name, active, cap, shares, value, withdrawable, allowance, sharePrice, sharePriceDropBps: dropBps, apyBps };
+    // Circle's view of the vault (Earn Kit); its 7-day APY stands in until we have an hour of our own history
+    const cv = circle?.get(addr) ?? null;
+    const circleApy = cv ? cv.apy7dBps ?? cv.apyBps : null;
+    venue = {
+      address: addr, name: known.name, active, cap, shares, value, withdrawable, allowance, sharePrice, sharePriceDropBps: dropBps,
+      apyBps: apyBps ?? circleApy, apySource: apyBps !== null ? "share price" : circleApy !== null ? "Circle Earn Kit, 7-day" : null,
+      circle: cv,
+    };
     break;
   }
 

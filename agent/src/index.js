@@ -12,6 +12,7 @@ import { planCalls, runCalls, writeRecord, postNote, poke } from "./executor.js"
 import { Indexer } from "./indexer.js";
 import { startServer } from "./server.js";
 import { Bills } from "./bills.js";
+import { CircleVaults } from "./circle.js";
 
 const cfg = config();
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -43,19 +44,20 @@ const { pub, wallet } = clients(cfg, account);
 const indexer = new Indexer({ pub, cfg, log });
 const known = (a) => indexer.db.mandates.some((x) => x.toLowerCase() === a.toLowerCase());
 // a bill can only be stored for an account our factory created (re-index once for a brand-new one)
+const circle = new CircleVaults({ cfg, log });
 const bills = new Bills({ cfg, pub, isMandate: async (a) => known(a) || (await indexer.sync().catch(() => {}), known(a)) });
 const status = { agent: account.address, dryRun: cfg.dryRun, lastCycle: null, mandates: {} };
 
 log(`agent ${account.address} | factory ${cfg.factory} | venues ${cfg.venues.map((v) => v.name).join(", ") || "none"} | ${cfg.dryRun ? "DRY RUN" : "LIVE"}`);
 const once = process.argv.includes("--once");
-if (!once) startServer({ cfg, indexer, bills, getStatus: () => status, log }); // a one-shot cycle needs no API
+if (!once) startServer({ cfg, indexer, bills, circle, getStatus: () => ({ ...status, circle: { enabled: circle.enabled, asOf: circle.at ? new Date(circle.at).toISOString() : null, error: circle.error } }), log }); // a one-shot cycle needs no API
 
 async function cycleMandate(mandate) {
   // operator-configured payables plus the owner's own signed bills that are still unpaid
   const payables = { ...readPayables() };
   const key0 = mandate.toLowerCase();
   payables[key0] = [...(payables[key0] || []), ...bills.payables(mandate, indexer.eventsFor(mandate))];
-  const snap = await snapshot({ pub, cfg, state, mandate, payables });
+  const snap = await snapshot({ pub, cfg, state, mandate, payables, circle });
   if (snap.agent.toLowerCase() !== account.address.toLowerCase()) return; // owner rotated the agent
   const decision = decide(snap, cfg.policy);
   const v = snap.venue;
@@ -107,7 +109,7 @@ async function cycleMandate(mandate) {
       state: {
         nav: decision.facts.nav, idle: snap.idle, deployed: v?.value ?? 0n, hwm: snap.hwm, frozen: snap.frozen,
         target: decision.facts.target, band: decision.facts.band, dueHorizon: decision.facts.dueHorizon, dueUrgent: decision.facts.dueUrgent,
-        venue: v ? { address: v.address, name: v.name, cap: v.cap, apyBps: v.apyBps, sharePriceDropBps: v.sharePriceDropBps } : null,
+        venue: v ? { address: v.address, name: v.name, cap: v.cap, apyBps: v.apyBps, apySource: v.apySource, sharePriceDropBps: v.sharePriceDropBps, circle: v.circle } : null,
         payables: snap.payables,
       },
       mode: decision.mode,
@@ -139,6 +141,7 @@ async function cycleMandate(mandate) {
 }
 
 async function cycle() {
+  await circle.refresh(); // never throws; stale or missing data just means "no opinion"
   try {
     await indexer.sync();
   } catch (e) {

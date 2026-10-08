@@ -22,7 +22,7 @@
 
 ```bash
 git clone https://github.com/Makabeez/mandate && cd mandate
-make judge-demo     # no wallet, no RPC, no API key: 24 contract tests + 16 agent decision scenarios + 17 bill checks + a prompt-injection test
+make judge-demo     # no wallet, no RPC, no API key: 24 contract tests + 18 agent decision scenarios + 17 bill checks + a prompt-injection test
 ```
 
 For the full loop on a local chain (real contracts, the real agent process, a stub reviewer): `cd agent && npm install && cd .. && make e2e`. For the owner's bill flow (sign a bill, the agent raises cash, the owner pays, the bill settles, forged and replayed bills refused): `make e2e-bills`.
@@ -150,10 +150,14 @@ FACTORY=0x... AGENT=0x... VAULT=0x... \
 | MandateAccount (first live mandate) | `0xEa08f2195ae9f29079a4cb6aFB05238949576d57` |
 | ERC4626Valuer (Galaxy USDC) | `0xd4e895ACf808bB215b6DE8eC84F4b9f974fd0b61` |
 | Venue: Galaxy USDC (Morpho) | `0x8E357432CC12ff425c36432F312968aEb16112AF` |
-| Venue for new mandates: Steakhouse Prime USDC (Morpho) | `0xbeef0007d5A04246F5382957035Df34f7e82102e` |
-| ERC4626Valuer (Steakhouse Prime USDC) | `0x7c9878a2c993b90155339D09365449a5263E627f` |
+| Venue for new mandates: Steakhouse Prime USDC (Morpho) | `0xbeef0016cb2Fd5C352ea7CA08a9f54739DFa7298` |
+| ERC4626Valuer (that vault) | `0xdeCBf0E1E61F47651d10EC723750D727892FC960` |
 
-New mandates use Steakhouse Prime USDC: on Oct 1 Galaxy USDC was fully lent out and could not pay out any amount, while Steakhouse Prime kept serving withdrawals.
+New mandates use the Steakhouse Prime USDC vault that Circle's Earn Kit lists with no warnings (Circle-guarded, about 160k USDC available on Oct 8). Galaxy USDC was fully lent out on Oct 1 and again on Oct 8. An earlier choice, `0xbeef0007` (valuer `0x7c98…627f`), is flagged `not_whitelisted` by Circle and no mandate uses it.
+
+### Circle's view of every vault
+
+The agent reads Circle's Earn Kit (`@circle-fin/earn-kit`, App Kit SDK) for each vault on Arc: available liquidity, APY and Circle's own risk warnings. A vault Circle flags `low_liquidity` or `not_whitelisted` gets no new deposits until the flag clears; withdrawals are never blocked by it, and if Circle's service is down the agent behaves as before. The dashboard shows the same signals, served at `/api/vaults`. Earn Kit can also sign deposits, but only from its own wallet; Mandate's money has to leave through the account's `execute()`, where the contract checks it, so the agent uses Earn Kit for what it knows about vaults, never to move funds.
 
 ### Bills
 

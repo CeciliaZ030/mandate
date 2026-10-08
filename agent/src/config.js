@@ -71,6 +71,13 @@ export function config() {
     blockedBackoffMinutes: num(e.BLOCKED_BACKOFF_MINUTES, 60),
     indexFromBlock: BigInt(e.INDEX_FROM_BLOCK || "0"),
     dryRun: /^(1|true|yes)$/i.test(e.DRY_RUN || ""),
+    // Circle Earn Kit: Circle's liquidity, APY and risk warnings per vault (Arc mainnet/testnet only)
+    circle: {
+      enabled: !/^(0|false|no|off)$/i.test(e.CIRCLE_EARN_KIT || ""),
+      apiKey: e.CIRCLE_API_KEY || "",
+      ttlMs: num(e.CIRCLE_REFRESH_MINUTES, 10) * 60_000,
+      staleMs: num(e.CIRCLE_STALE_MINUTES, 60) * 60_000,
+    },
     policy: {
       reserveFloor: usdc(e.RESERVE_FLOOR_USDC, 0.5),
       reserveBps: BigInt(num(e.RESERVE_BPS, 1000)),
@@ -83,6 +90,8 @@ export function config() {
       bandBps: BigInt(num(e.BAND_BPS, 500)),
       lossTripBps: BigInt(num(e.LOSS_TRIP_BPS, 5)),
       windDownHours: num(e.WIND_DOWN_HOURS, 24),
+      // Circle Earn Kit warnings that stop new deposits into a vault (withdrawals are never blocked)
+      circleBlock: (e.CIRCLE_BLOCK_WARNINGS ?? "low_liquidity,not_whitelisted").split(",").map((x) => x.trim()).filter(Boolean),
     },
   };
 }
