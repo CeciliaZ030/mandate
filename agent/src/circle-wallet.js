@@ -65,7 +65,7 @@ export class CircleWallet {
 
     const response = await this.run(this.binary, command);
     const transaction = response?.data ?? response;
-    if (transaction?.state !== "CONFIRMED" || !transaction.txHash) {
+    if (!new Set(["CONFIRMED", "COMPLETE"]).has(transaction?.state) || !transaction.txHash) {
       throw new Error(`Circle transaction did not confirm: ${transaction?.state || "unknown state"}`);
     }
     return transaction.txHash;

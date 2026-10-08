@@ -18,7 +18,7 @@ const wallet = new CircleWallet({
   chain: "ARC",
   run: async (binary, args) => {
     invocation = { binary, args };
-    return { data: { state: "CONFIRMED", txHash } };
+    return { data: { state: "COMPLETE", txHash } };
   },
 });
 
@@ -34,6 +34,16 @@ assert.deepEqual(invocation, {
   ],
 });
 
+const confirmed = new CircleWallet({
+  account: parseAccount(walletAddress),
+  chain: "ARC",
+  run: async () => ({ data: { state: "CONFIRMED", txHash } }),
+});
+assert.equal(
+  await confirmed.writeContract({ address: mandate, abi, functionName: "execute", args: [venue, "0x1234"] }),
+  txHash,
+);
+
 const failed = new CircleWallet({
   account: parseAccount(walletAddress),
   chain: "ARC",
@@ -44,5 +54,5 @@ await assert.rejects(
   /did not confirm: FAILED/,
 );
 
-console.log("  ✓ Circle wallet turns writeContract into a shell-free contract execution");
+console.log("  ✓ Circle wallet accepts Circle's confirmed and complete terminal states");
 console.log("  ✓ Circle wallet refuses non-confirmed transactions");
