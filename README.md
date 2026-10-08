@@ -18,6 +18,8 @@
 
 > Agents that move money today run on *trust me*: the limits live in the agent's own code, where the owner can't verify them and the agent can route around them. Mandate moves the limits on-chain. The agent operates the account; the contract decides what it is allowed to do.
 
+**Demo (96s):** https://youtu.be/haSBhd5yaK0 · **Live:** https://mandate-three-pi.vercel.app · **Judging guide:** [SUBMISSION.md](SUBMISSION.md)
+
 ## Try it
 
 ```bash
@@ -143,6 +145,8 @@ forge script script/Deploy.s.sol --rpc-url arc --account mandate-owner --broadca
 FACTORY=0x... AGENT=0x... VAULT=0x... \
   forge script script/CreateMandate.s.sol --rpc-url arc --account mandate-owner --broadcast
 ```
+
+Demo (96s): https://youtu.be/haSBhd5yaK0. All contracts below are verified on the Arc explorer (Sourcify, exact match).
 
 | Contract | Arc mainnet |
 |---|---|

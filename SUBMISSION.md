@@ -16,7 +16,8 @@ A company can't hand its treasury to an AI agent, because the agent's limits liv
 | Factory (Arc mainnet) | `0xb3F362850E04aD6e9147698Cc1EdbcB8891f307e` |
 | First mandate (Arc mainnet) | `0xEa08f2195ae9f29079a4cb6aFB05238949576d57` |
 | Reproduce in one command | `make judge-demo` (no wallet, no RPC, no key, under 60s) |
-| Video | TODO (60-90s: dashboard, a live sweep, the breach tx on the explorer) |
+| Video (96s) | https://youtu.be/haSBhd5yaK0 : the live dashboard, Circle's flag on the vault, a decision record checked against its on-chain hash, the blocked attack decoded on the Arc explorer, the agent's own withdrawal, the test results |
+| Contracts verified | All four (factory, mandate, both price readers) on the Arc explorer, via Sourcify, exact match: the breach tx's log decodes as `Breach(reason, target, selector)` |
 
 ## What happens in a cycle
 
