@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "once": "node src/index.js --once",
-    "judge": "node judge/run.js"
+    "judge": "node judge/run.js",
+    "test:circle": "node test/circle-wallet.mjs"
   },
   "engines": { "node": ">=20" },
   "dependencies": {

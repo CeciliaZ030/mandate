@@ -4,6 +4,57 @@ Everything below runs on the home VPS (WSL, PM2) from `/mnt/c/Github/mandate`.
 
 ## 1. Agent
 
+### Circle Agent Wallet (recommended)
+
+Circle becomes the independent signing boundary: the agent process can request calls but never
+receives or stores a private key. Install the CLI, authenticate on mainnet, and copy the Arc wallet
+address into `agent/.env`:
+
+```bash
+npm install -g @circle-fin/cli
+circle wallet login you@example.com
+circle wallet list --chain ARC --type agent --output json
+
+# agent/.env
+AGENT_SIGNER=circle
+CIRCLE_WALLET_ADDRESS=0xYourCircleAgentWallet
+CIRCLE_CHAIN=ARC
+```
+
+The Mandate owner must then call `setAgent(0xYourCircleAgentWallet)` on each existing account (or
+use this address when creating a new account). Confirm that rotation onchain before starting the
+process; the agent deliberately ignores accounts whose `agent()` no longer matches its signer.
+
+On Arc mainnet, bind the Circle wallet to the Mandate account. This policy change requires a
+separate email OTP, so the unattended agent cannot silently relax it:
+
+```bash
+circle wallet limit set \
+  --address 0xYourCircleAgentWallet \
+  --chain ARC \
+  --policy-type contract \
+  --rule-type contract-allowlist \
+  --targets "[0xYourMandateAccount]"
+
+circle wallet limit --address 0xYourCircleAgentWallet --chain ARC --output json
+```
+
+The Circle policy allowlists contract addresses, not individual function selectors. That is enough
+for this design because the Circle wallet is the Mandate `agent`, not its owner: `MandateAccount`
+only lets that address use `execute()` and `note()` (while `poke()` is permissionless), and
+`execute()` applies the venue, selector, receiver, deployment, and loss rules onchain.
+
+Circle's stablecoin transfer caps apply to USDC held by the Circle wallet. They do **not** cap USDC
+held inside `MandateAccount`, because these calls send zero value and operate the account's funds.
+Keep the financial caps in the Mandate contract; use Circle's contract allowlist to prevent the
+signer from calling anything else.
+
+For Arc testnet, use a testnet Circle session and `CIRCLE_CHAIN=ARC-TESTNET`. Circle spending
+policies are mainnet-only, so testnet proves the signing integration but not the independent policy
+gate.
+
+### Local keystore
+
 ```bash
 cd /mnt/c/Github/mandate && git pull
 cd agent && npm install
