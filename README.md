@@ -78,6 +78,10 @@ Payouts to vendors stay owner-signed: the agent can only move cash between the a
 
 Deploy (local key or Circle Agent Wallet): [`docs/DEPLOY.md`](docs/DEPLOY.md). Dashboard: [`app/index.html`](app/index.html), one static file.
 
+### Aomi interface
+
+`aomi/mandate-agent` is a deployable Aomi App for the running Mandate API. It gives a hosted agent typed, read-only tools for treasury status, bills, decisions, full decision records, and Arc events. Aomi explains and retrieves evidence; Mandate remains the decision and enforcement engine, and Circle remains the signer. See [`aomi/mandate-agent/README.md`](aomi/mandate-agent/README.md).
+
 ## Tech Stack
 
 | Layer | Choice |
