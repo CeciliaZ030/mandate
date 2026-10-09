@@ -52,7 +52,8 @@ export function config() {
     keystore: expand(e.KEYSTORE),
     keystorePasswordFile: expand(e.KEYSTORE_PASSWORD_FILE),
     privateKey: e.AGENT_PRIVATE_KEY,
-    circle: {
+    // Circle Agent Wallet as the agent's signer (AGENT_SIGNER=circle); separate from Earn Kit below
+    circleWallet: {
       address: e.CIRCLE_WALLET_ADDRESS,
       chain: e.CIRCLE_CHAIN || (num(e.CHAIN_ID, 5042) === 5042 ? "ARC" : ""),
       cli: e.CIRCLE_CLI || "circle",

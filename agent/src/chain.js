@@ -36,9 +36,9 @@ export function makeChain(cfg) {
 
 export async function loadAccount(cfg) {
   if (cfg.signer === "circle") {
-    if (!cfg.circle.address) throw new Error("AGENT_SIGNER=circle requires CIRCLE_WALLET_ADDRESS");
-    if (!cfg.circle.chain) throw new Error("AGENT_SIGNER=circle requires CIRCLE_CHAIN for this chain id");
-    return parseAccount(cfg.circle.address);
+    if (!cfg.circleWallet.address) throw new Error("AGENT_SIGNER=circle requires CIRCLE_WALLET_ADDRESS");
+    if (!cfg.circleWallet.chain) throw new Error("AGENT_SIGNER=circle requires CIRCLE_CHAIN for this chain id");
+    return parseAccount(cfg.circleWallet.address);
   }
   if (cfg.signer !== "local") throw new Error(`unsupported AGENT_SIGNER ${cfg.signer}; expected local or circle`);
   if (cfg.keystore) {
@@ -61,7 +61,7 @@ export function clients(cfg, account) {
   const pub = createPublicClient({ chain, transport });
   const wallet = account
     ? cfg.signer === "circle"
-      ? new CircleWallet({ account, chain: cfg.circle.chain, binary: cfg.circle.cli })
+      ? new CircleWallet({ account, chain: cfg.circleWallet.chain, binary: cfg.circleWallet.cli })
       : createWalletClient({ chain, transport, account })
     : null;
   return { chain, pub, wallet };

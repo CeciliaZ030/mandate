@@ -56,3 +56,20 @@ await assert.rejects(
 
 console.log("  ✓ Circle wallet accepts Circle's confirmed and complete terminal states");
 console.log("  ✓ Circle wallet refuses non-confirmed transactions");
+
+// The signer config must survive alongside the Earn Kit config (both are Circle settings).
+{
+  const env = { ...process.env };
+  Object.assign(process.env, {
+    ARC_RPC_URL: "http://127.0.0.1:1", FACTORY: mandate, AGENT_SIGNER: "circle",
+    CIRCLE_WALLET_ADDRESS: walletAddress, CHAIN_ID: "5042",
+  });
+  const { config } = await import("../src/config.js");
+  const { loadAccount, clients } = await import("../src/chain.js");
+  const cfg = config();
+  assert.equal((await loadAccount(cfg)).address, walletAddress);
+  assert.ok(clients(cfg, await loadAccount(cfg)).wallet instanceof CircleWallet);
+  assert.equal(typeof cfg.circle.enabled, "boolean"); // Earn Kit settings intact
+  process.env = env;
+}
+console.log("  ✓ AGENT_SIGNER=circle loads the Circle wallet from env, Earn Kit config intact");
