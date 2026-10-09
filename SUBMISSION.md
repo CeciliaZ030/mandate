@@ -17,6 +17,7 @@ A company can't hand its treasury to an AI agent, because the agent's limits liv
 | First mandate (Arc mainnet) | `0xEa08f2195ae9f29079a4cb6aFB05238949576d57` |
 | Reproduce in one command | `make judge-demo` (no wallet, no RPC, no key, under 60s) |
 | Video (96s) | https://youtu.be/haSBhd5yaK0 : the live dashboard, Circle's flag on the vault, a decision record checked against its on-chain hash, the blocked attack decoded on the Arc explorer, the agent's own withdrawal, the test results |
+| Agent's signer | Circle Agent Wallet `0xbA2fBb82…E5cB`, locked by a Circle contract allowlist to the mandate account; policy changes need an email code. Live since Oct 9 |
 | Contracts verified | All four (factory, mandate, both price readers) on the Arc explorer, via Sourcify, exact match: the breach tx's log decodes as `Breach(reason, target, selector)` |
 
 ## What happens in a cycle
@@ -73,10 +74,11 @@ The test checks itself: with `resolveChoice()` deliberately broken it reports 10
 
 ## Every path money can take, and what blocks it
 
-aomi's research on agent transactions ([Three Gates from Intent to Settlement](https://aomi.dev/research/three-gates-onchain)) says a security evaluation should "enumerate every path to value movement, identify the authority that can block each path and test the claimed coverage." Mandate is their second gate, a mandate enforced on-chain by the account contract, with the agent's runtime in front of it. Here is every path, with the test or mainnet transaction that shows it closed.
+aomi's research on agent transactions ([Three Gates from Intent to Settlement](https://aomi.dev/research/three-gates-onchain)) says a security evaluation should "enumerate every path to value movement, identify the authority that can block each path and test the claimed coverage." Mandate is their second gate, a mandate enforced on-chain by the account contract, with the agent's runtime in front of it. Here is every path, with the test or mainnet transaction that shows it closed. Since Oct 9 the agent also has aomi's first gate: it signs through a Circle Agent Wallet whose policy only lets it call the mandate account (row 0).
 
 | # | Path to value | Who can try it | What blocks it | Proof |
 |---|---|---|---|---|
+| 0 | The agent's signer calls any contract other than the mandate account (USDC directly, a vault, a drainer) | agent server | Wallet: Circle Agent Wallet policy, contract allowlist = the mandate account only. Changing it needs an email code the server doesn't have | Oct 9: a 0-USDC `approve` on USDC from the agent wallet was refused by Circle, "Contract address is not on the allowlist"; nothing was signed |
 | 1 | Send USDC from the account to any address | agent key | Contract: on USDC the agent may only call `approve` (`BAD_APPROVE`) | `test_blocks_directUsdcTransfer` |
 | 2 | Approve USDC to anyone but the vault, or above the vault's cap | agent key | Contract: `BAD_APPROVE` | `test_blocks_approveToNonVenue`, `test_blocks_approveAboveVenueCap` |
 | 3 | Deposit into the vault for someone else | agent key | Contract: the receiver must be the account (`BAD_ARG`) | `test_blocks_depositToAttackerReceiver`, `testFuzz_foreignReceiverAlwaysBlocked` (512 random receivers); on mainnet, breach tx `0x1acc1506…8152` |
@@ -94,8 +96,8 @@ aomi's research on agent transactions ([Three Gates from Intent to Settlement](h
 
 - **The owner's own key.** The owner can withdraw anywhere and call anything through `ownerExecute`. That is the point: the owner is the principal, and withdrawals must work even when the account is frozen. Protecting the owner's key is a wallet question (aomi's first gate), outside the account.
 - **The vault's own code.** The account approves the vault up to its cap and holds its shares, so a broken or malicious vault could lose them. The owner chooses the vault; the cap bounds the exposure; row 7 catches a loss during the agent's call and row 8 one between calls.
-- **A stolen agent key.** It can only do what rows 1–10 allow: move money between the account and the vault, within the caps. The worst it can do is waste its own gas, or trigger a breach on purpose to freeze the account; the owner then unfreezes and replaces the agent with `setAgent`.
-- **No wallet-policy gate yet.** The agent signs with a local keystore, so nothing independent reviews its transactions before signing. aomi's Execution Kit doesn't change that: it is non-custodial and the agent keeps its key. Circle Agent Wallets are the candidate: per-wallet policies (contract allowlist, USDC caps) whose changes are confirmed by an email code, so a compromised agent server can't relax them. We have not yet confirmed that an Agent Wallet can sign an arbitrary contract call on Arc, which is what the agent's `execute()` needs.
+- **A compromised agent server.** There is no agent key on it any more; it holds a Circle session that can only call the mandate account (row 0), and inside the account only what rows 1–10 allow: move money between the account and the vault, within the caps. The worst it can do is trigger a breach on purpose to freeze the account; the owner then unfreezes and replaces the agent with `setAgent`.
+- **What the wallet gate doesn't see.** Circle's allowlist works on contract addresses, not functions, so it can't tell `execute()` from `note()`; the contract does that (rows 1–10). Circle's USDC transfer cap applies to the Circle wallet's own balance (zero), not to the USDC inside the account. Each gate covers what the other can't.
 - **No block-builder gate.** Arc's ordering is not under our control; the loss-per-call check bounds what a manipulated price can cost in any one call.
 
 ## What was built during Tameion (Sept 27 – Oct 17)
@@ -118,6 +120,7 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Live liquidity-freeze handling: venue revert diagnosis, backoff, status line on the dashboard | commits `67a5d4e`, `42cd2f2`; the section above |
 | Owner-signed bills: the owner adds a bill by signing it with the owner wallet (checked against `owner()` on-chain), the agent keeps its cash ready, the owner pays from the dashboard, the bill settles from the on-chain payment | `agent/src/bills.js`, dashboard Bills section, `make e2e-bills` (forged, stale, tampered, replayed bills refused) |
 | New mandates moved to a vault that kept paying out during the freeze (Steakhouse Prime USDC), checked on-chain with a real holder's withdrawal simulation | dashboard config, valuer `0x7c98…627f` |
+| Circle Agent Wallet as the agent's signer, with a contract allowlist on the mandate account: the agent never holds a key. Contributed by Cecilia from the aomi team (PR #1, with a read-only Aomi App over the agent's API); we reviewed it, fixed a config collision with Earn Kit and switched the live agent | `agent/src/circle-wallet.js`, `aomi/mandate-agent/`; first wallet tx `0x86e486f4…198a` (poke), `setAgent` tx `0x602b44f9…ebea` (Oct 9) |
 | Independent review of the agent before going live: 7 bugs found and fixed (incl. an RPC-relay allowlist bypass confirmed against the live RPC) | commit `d892807` message, regression scenarios in `agent/judge/run.js` |
 
 ## Real vs. simulated
@@ -128,6 +131,7 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Agent deposit into a live Morpho vault on Arc | **Real** |
 | Breach blocked on mainnet, funds untouched, account frozen and unfrozen | **Real**, triggered on purpose by the builder to prove the guard |
 | Agent running on mainnet, decisions and notes | **Real** since Oct 1, 14:19 UTC (note tx `0x8b76fd84…e0c5`) |
+| Agent signs through a Circle Agent Wallet with a contract allowlist | **Real** since Oct 9, 13:31 UTC. The allowlist's refusal was tested on mainnet; Circle paid the gas (the wallet holds no USDC). The agent's first own transaction through it is its next daily note or poke |
 | Agent withdrawals on mainnet | **Real**: 0.500009 USDC on Oct 1, 23:35 UTC, executed by the agent on its own once the vault paid out again (tx `0x3a64c17a…660b`) |
 | Liquidity freeze | **Real**, not staged: a third-party Morpho market reached full utilization |
 | Payables schedule | Owner-signed bills entered in the dashboard; the first mandate's schedule was illustrative. No third-party company data |
@@ -154,7 +158,6 @@ At the default cadence the agent spends about 0.0028 USDC a day on upkeep (one `
 ## Next
 
 - A second venue per mandate, so one illiquid vault can't trap the whole reserve. Circle's Earn Kit already tells the agent which vaults have liquidity; with two venues it could move the reserve to the liquid one.
-- A wallet-policy gate on the agent's key (Circle Agent Wallets), once contract calls through it are confirmed on Arc.
 - Fund the idle reserve at creation, not on the agent's first cycle.
 - Payouts: the agent keeps bill cash ready, but only the owner's wallet can pay a bill. Allowlisted payees with per-payee caps, enforced by the contract, would let the agent pay on the due date by itself.
 
@@ -164,8 +167,9 @@ At the default cadence the agent spends about 0.0028 USDC a day on upkeep (one `
 - USDC's ERC-20 interface at `0x3600…0000` for all accounting.
 - **Earn Kit** (App Kit SDK, `@circle-fin/earn-kit`): every 10 minutes the agent reads Circle's view of each lending vault on Arc: available liquidity, APY and Circle's own risk warnings. A vault Circle flags `low_liquidity` or `not_whitelisted` gets no new deposits until the flag clears. Withdrawals are never blocked by it, and if Circle's service is down the agent behaves as before. The same signals go into the reviewer's prompt and the decision record, and the dashboard shows them (served at `/api/vaults`). Earn Kit also stands in for the vault's APY until the agent has an hour of its own share-price history.
 - **What it caught on Oct 8:** Galaxy USDC, where the live mandate holds 4.5 USDC, was flagged `low_liquidity` (0.18 USDC available out of 89.7M). On real mainnet data the agent now holds, and with 50 USDC of extra idle cash it would still refuse a deposit, citing Circle's flag. Circle also flagged `not_whitelisted` on `0xbeef0007`, the vault the dashboard had picked for new mandates; new mandates now default to `0xbeef0016`, which Circle lists with no warnings (Circle-guarded, about 160k USDC available).
+- **Agent Wallets** (`@circle-fin/cli`): since Oct 9 the agent signs every transaction through a Circle Agent Wallet instead of a local key. Its policy allowlists one contract, the mandate account, and any change to it needs an email code, so the agent's server can't loosen it. Proven on mainnet: the wallet's `poke()` went through (`0x86e486f4…198a`), and a call to USDC from the same wallet was refused by Circle before signing. The owner moved the account to it with `setAgent` (`0x602b44f9…ebea`).
 - **Why not Earn Kit's deposit:** it signs from its own wallet adapter, and Mandate's money has to leave through the account's `execute()`, where the contract checks it. We use Earn Kit for what it knows about vaults, never to move funds.
-- **Checked, not used:** aomi's Execution Kit (non-custodial: the agent keeps its key, so it adds no independent gate, confirmed by the aomi team on Oct 8) and Circle Agent Wallets (see "No wallet-policy gate yet" above). Gateway and Arc Studio are not used.
+- **Checked, not used:** aomi's Execution Kit (non-custodial: the agent keeps its key, so it adds no independent gate, confirmed by the aomi team on Oct 8). The aomi team instead contributed a read-only Aomi App (`aomi/mandate-agent`) that audits the account through the agent's API. Gateway and Arc Studio are not used.
 
 ## Traction
 
@@ -177,3 +181,4 @@ TODO before submitting: the number of mandates created by wallets other than the
 2. **The RPC reference labels the mainnet endpoint "permissioned"**, but `rpc.mainnet.arc.io` answered `eth_chainId` and served a full deploy without allowlisting. Builders may go buy a private endpoint they don't need. Stating the actual policy (rate limits, which methods) would help.
 3. **Native vs ERC-20 decimals** (18 vs 6 for the same balance) is well explained in the docs, but every tool that sends native value is a trap: `cast send --value 2` sends 2e-18 USDC. A bold warning in the "Connect to Arc" page would prevent real losses.
 4. **ERC-4626 `max*` functions are not reliable liquidity signals across vault designs**; some implementations return 0 by design, so an agent that trusts `maxWithdraw` can conclude nothing is withdrawable. Not Circle's bug, but an Arc integration guide for the Morpho vaults that launched with mainnet (which to use, how to read liquidity) would help. Mandate treats 0 as unknown and relies on preflight simulation.
+5. **Agent Wallet policies stop at the contract address.** A contract allowlist can't say "only `execute()` and `note()` on this contract". For Mandate the contract covers that, but for an agent calling a general-purpose contract (a router, a vault) a function-selector allowlist would make the wallet gate much tighter.
