@@ -1,0 +1,16 @@
+[package]
+name = "mandate-aomi-agent"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "aomi/mandate-agent/src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aomi-sdk = "=5.1.1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

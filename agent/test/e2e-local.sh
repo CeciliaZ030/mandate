@@ -46,7 +46,7 @@ nav() { printf "   state: nav=%s idle=%s deployed=%s frozen=%s\n" \
 echo; echo "── 1. idle cash, nothing due: reviewer stages the sweep (half)"; run; nav
 echo; echo "── 2. next cycle: remaining idle above target, sweep again"; run; nav
 NOW=$(cast block latest -f timestamp --rpc-url $RPC)
-DUE=$(date -u -d "@$((NOW + 6*3600))" +%Y-%m-%dT%H:%M:%SZ)
+DUE=$(node -e 'console.log(new Date(Number(process.argv[1]) * 1000).toISOString())' "$((NOW + 6*3600))")
 echo "{\"$MANDATE\":[{\"id\":\"inv-1\",\"label\":\"contractor invoice\",\"amount\":\"2.00\",\"dueAt\":\"$DUE\"}]}" > "$WORK/payables.json"
 echo; echo "── 3. invoice of 2.00 due in 6h: mandatory withdrawal"; run; nav
 echo; echo "── 4. vault loses 1%: agent exits everything"; cast send $VAULT "simulateLoss(uint256)" 100 --rpc-url $RPC --private-key $OWNER_PK >/dev/null; run; nav

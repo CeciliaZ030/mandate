@@ -48,9 +48,15 @@ export function config() {
     factory: req("FACTORY"),
     usdc: e.USDC || "0x3600000000000000000000000000000000000000",
     venues,
+    signer: (e.AGENT_SIGNER || "local").toLowerCase(),
     keystore: expand(e.KEYSTORE),
     keystorePasswordFile: expand(e.KEYSTORE_PASSWORD_FILE),
     privateKey: e.AGENT_PRIVATE_KEY,
+    circle: {
+      address: e.CIRCLE_WALLET_ADDRESS,
+      chain: e.CIRCLE_CHAIN || (num(e.CHAIN_ID, 5042) === 5042 ? "ARC" : ""),
+      cli: e.CIRCLE_CLI || "circle",
+    },
     llm: {
       baseUrl: e.LLM_BASE_URL || "",
       model: e.LLM_MODEL || "agent-loop",

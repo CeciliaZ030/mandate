@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createPublicClient, createWalletClient, defineChain, http, parseAbi } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { parseAccount, privateKeyToAccount } from "viem/accounts";
 import { REPO_DIR } from "./config.js";
+import { CircleWallet } from "./circle-wallet.js";
 
 const abi = (name) => JSON.parse(fs.readFileSync(path.join(REPO_DIR, "abi", `${name}.json`), "utf8"));
 export const MANDATE_ABI = abi("MandateAccount");
@@ -34,6 +35,12 @@ export function makeChain(cfg) {
 }
 
 export async function loadAccount(cfg) {
+  if (cfg.signer === "circle") {
+    if (!cfg.circle.address) throw new Error("AGENT_SIGNER=circle requires CIRCLE_WALLET_ADDRESS");
+    if (!cfg.circle.chain) throw new Error("AGENT_SIGNER=circle requires CIRCLE_CHAIN for this chain id");
+    return parseAccount(cfg.circle.address);
+  }
+  if (cfg.signer !== "local") throw new Error(`unsupported AGENT_SIGNER ${cfg.signer}; expected local or circle`);
   if (cfg.keystore) {
     if (!cfg.keystorePasswordFile) throw new Error("KEYSTORE set but KEYSTORE_PASSWORD_FILE missing");
     const st = fs.statSync(cfg.keystorePasswordFile);
@@ -52,6 +59,10 @@ export function clients(cfg, account) {
   const chain = makeChain(cfg);
   const transport = http(cfg.rpcUrl, { retryCount: 3, timeout: 20_000 });
   const pub = createPublicClient({ chain, transport });
-  const wallet = account ? createWalletClient({ chain, transport, account }) : null;
+  const wallet = account
+    ? cfg.signer === "circle"
+      ? new CircleWallet({ account, chain: cfg.circle.chain, binary: cfg.circle.cli })
+      : createWalletClient({ chain, transport, account })
+    : null;
   return { chain, pub, wallet };
 }

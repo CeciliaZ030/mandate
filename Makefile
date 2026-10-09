@@ -10,6 +10,7 @@ test:
 agent-judge:
 	node agent/judge/run.js
 	node agent/test/bills-unit.mjs
+	node agent/test/circle-wallet.mjs
 	node agent/test/injection.mjs --fake > /dev/null
 
 # full local run (anvil + real contracts + agent process); needs `cd agent && npm install`

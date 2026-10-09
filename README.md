@@ -73,11 +73,16 @@ Spending limits answer *"how much can the agent send?"* Mandate answers the ques
 - **Exits on risk** before the contract has to freeze: vault share price down more than 5 bps, drawdown past half the limit, or less than 24h to mandate expiry.
 - **The LLM reviews, it does not decide amounts.** The policy computes every candidate and amount; the reviewer (any OpenAI-compatible endpoint) picks one by id. An unknown choice is ignored and the policy default runs.
 - **Never trips its own wire.** Every call is simulated as `execute()` from the agent address first; if the mandate would return false, the transaction is not sent.
+- **Optional Circle signing boundary.** Replace the local key with a Circle Agent Wallet, then allowlist only the Mandate account. Policy changes require email OTP; Mandate still enforces the venue, receiver, loss, and deployment limits onchain.
 - **Every decision is on-chain.** The full record (state, candidates, reviewer rationale, tx hashes) is hashed with keccak256 and posted via `note(tag, hash, uri)`. The dashboard re-hashes the served record and flags any mismatch.
 
 Payouts to vendors stay owner-signed: the agent can only move cash between the account and the vault. That separation of duties is the point.
 
-Deploy: [`docs/DEPLOY.md`](docs/DEPLOY.md). Dashboard: [`app/index.html`](app/index.html), one static file.
+Deploy (local key or Circle Agent Wallet): [`docs/DEPLOY.md`](docs/DEPLOY.md). Dashboard: [`app/index.html`](app/index.html), one static file.
+
+### Aomi interface
+
+`aomi/mandate-agent` is a deployable Aomi App for the running Mandate API. It gives a hosted agent typed, read-only tools for treasury status, bills, decisions, full decision records, and Arc events. Aomi explains and retrieves evidence; Mandate remains the decision and enforcement engine, and Circle remains the signer. See [`aomi/mandate-agent/README.md`](aomi/mandate-agent/README.md).
 
 ## Tech Stack
 

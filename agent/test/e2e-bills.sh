@@ -53,7 +53,7 @@ for _ in $(seq 1 60); do curl -sf $API/api/health | grep -q '"lastCycle":"' && b
 echo; echo "── 1. agent's first cycle: idle $(idle), deployed $(deployed)"
 
 NOW=$(cast block latest -f timestamp --rpc-url $RPC)
-iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%S.000Z; }
+iso() { node -e 'console.log(new Date(Number(process.argv[1]) * 1000).toISOString())' "$1"; }
 msg() { # action id amount due issued
   printf 'Mandate bill\nmandate: %s\nchain: 31337\naction: %s\nid: %s\npayee: %s\namount: %s\ndue: %s\nlabel: Hosting, October\nissued: %s' \
     "$MANDATE" "$1" "$2" "$PAYEE" "$3" "$4" "$5"; }
