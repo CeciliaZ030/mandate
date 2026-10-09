@@ -120,7 +120,7 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Live liquidity-freeze handling: venue revert diagnosis, backoff, status line on the dashboard | commits `67a5d4e`, `42cd2f2`; the section above |
 | Owner-signed bills: the owner adds a bill by signing it with the owner wallet (checked against `owner()` on-chain), the agent keeps its cash ready, the owner pays from the dashboard, the bill settles from the on-chain payment | `agent/src/bills.js`, dashboard Bills section, `make e2e-bills` (forged, stale, tampered, replayed bills refused) |
 | New mandates moved to a vault that kept paying out during the freeze (Steakhouse Prime USDC), checked on-chain with a real holder's withdrawal simulation | dashboard config, valuer `0x7c98…627f` |
-| Circle Agent Wallet as the agent's signer, with a contract allowlist on the mandate account: the agent never holds a key. Contributed by Cecilia from the aomi team (PR #1, with a read-only Aomi App over the agent's API); we reviewed it, fixed a config collision with Earn Kit and switched the live agent | `agent/src/circle-wallet.js`, `aomi/mandate-agent/`; first wallet tx `0x86e486f4…198a` (poke), `setAgent` tx `0x602b44f9…ebea` (Oct 9) |
+| Circle Agent Wallet as the agent's signer, with a contract allowlist on the mandate account: the agent never holds a key. Contributed by Cecilia from the aomi team (PR #1, with a read-only Aomi App over the agent's API); we reviewed it, fixed a config collision with Earn Kit and switched the live agent | `agent/src/circle-wallet.js`, `aomi/mandate-agent/`; first wallet tx `0x86e486f4…198a` (poke, by hand), `setAgent` tx `0x602b44f9…ebea`, first agent tx through Circle `0xf0ab524a…52a3` (Oct 9) |
 | Independent review of the agent before going live: 7 bugs found and fixed (incl. an RPC-relay allowlist bypass confirmed against the live RPC) | commit `d892807` message, regression scenarios in `agent/judge/run.js` |
 
 ## Real vs. simulated
@@ -131,7 +131,7 @@ Honest delta: the `MandateAccount` / `MandateFactory` contracts were written on 
 | Agent deposit into a live Morpho vault on Arc | **Real** |
 | Breach blocked on mainnet, funds untouched, account frozen and unfrozen | **Real**, triggered on purpose by the builder to prove the guard |
 | Agent running on mainnet, decisions and notes | **Real** since Oct 1, 14:19 UTC (note tx `0x8b76fd84…e0c5`) |
-| Agent signs through a Circle Agent Wallet with a contract allowlist | **Real** since Oct 9, 13:31 UTC. The allowlist's refusal was tested on mainnet; Circle paid the gas (the wallet holds no USDC). The agent's first own transaction through it is its next daily note or poke |
+| Agent signs through a Circle Agent Wallet with a contract allowlist | **Real** since Oct 9, 13:31 UTC. The allowlist's refusal was tested on mainnet; Circle paid the gas (the wallet holds no USDC). The agent's first transaction of its own through it: its daily `poke()` on Oct 9, 14:31 UTC (`0xf0ab524a…52a3`), sent from the Circle wallet |
 | Agent withdrawals on mainnet | **Real**: 0.500009 USDC on Oct 1, 23:35 UTC, executed by the agent on its own once the vault paid out again (tx `0x3a64c17a…660b`) |
 | Liquidity freeze | **Real**, not staged: a third-party Morpho market reached full utilization |
 | Payables schedule | Owner-signed bills entered in the dashboard; the first mandate's schedule was illustrative. No third-party company data |
