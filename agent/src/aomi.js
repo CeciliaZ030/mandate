@@ -62,7 +62,8 @@ export class AomiMandateExecutor {
 
   async run({ snap, calls }) {
     const outerCalls = mandateCalls(snap.mandate, calls);
-    const fingerprint = keccak256(stringToHex(JSON.stringify(outerCalls)));
+    const payer = await this.wallet.gatewayPayer();
+    const fingerprint = keccak256(stringToHex(JSON.stringify({ version: 2, payer, outerCalls })));
     const stateDirectory = path.join(
       this.cfg.aomi.stateDirectory,
       lower(snap.mandate),
@@ -73,7 +74,7 @@ export class AomiMandateExecutor {
       intent: `Verify and freeze MandateAccount ${snap.mandate} plan ${fingerprint}`,
       chainId: this.cfg.chainId,
       sender: this.wallet.walletAddress,
-      payer: this.wallet.walletAddress,
+      payer,
       calls: outerCalls,
       constraints: {
         maxOutgoingUsdcWei: "0",
@@ -84,7 +85,7 @@ export class AomiMandateExecutor {
     };
     const client = new TaskClient({
       endpoint: this.cfg.aomi.endpoint,
-      payer: this.wallet.walletAddress,
+      payer,
       recipient: this.cfg.aomi.seller,
       maxFeeMicrousd: this.cfg.aomi.maxFeeMicrousd,
       trustedJwks: this.trustedJwks,
