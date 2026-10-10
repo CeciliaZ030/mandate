@@ -63,7 +63,7 @@ export class AomiMandateExecutor {
   async run({ snap, calls }) {
     const outerCalls = mandateCalls(snap.mandate, calls);
     const payer = await this.wallet.gatewayPayer();
-    const fingerprint = keccak256(stringToHex(JSON.stringify({ version: 2, payer, outerCalls })));
+    const fingerprint = keccak256(stringToHex(JSON.stringify({ version: 3, payer, outerCalls })));
     const stateDirectory = path.join(
       this.cfg.aomi.stateDirectory,
       lower(snap.mandate),
