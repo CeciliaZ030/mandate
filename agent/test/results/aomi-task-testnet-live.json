@@ -36,6 +36,7 @@
     {
       "label": "approve",
       "circleTransactionId": "ab1173b9-7bde-5f8b-92b9-3fe7484d82fb",
+      "circleState": "COMPLETE",
       "transactionHash": "0x8232e5fbe22fca8140e0e7780546453d5a43a3f6abc2bbf8745020579d9be77b",
       "receiptStatus": "0x1",
       "blockNumber": "0x3f6ac7b",
@@ -51,6 +52,7 @@
     {
       "label": "deposit",
       "circleTransactionId": "417241a4-ce56-5d05-98ae-9a5e3de594b9",
+      "circleState": "COMPLETE",
       "transactionHash": "0x12cf007c36af7209295c64252c0f825f58177f1cca913860211a0a9e7d80c2fd",
       "receiptStatus": "0x1",
       "blockNumber": "0x3f6ac85",
