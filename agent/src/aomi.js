@@ -4,6 +4,7 @@ import { decodeEventLog, encodeFunctionData, keccak256, stringToHex } from "viem
 import { TaskClient, parseSmartAccountArtifact } from "arc-canteen/task-client";
 import { CircleArcWallet, verifyArcCallReceipt } from "arc-canteen/circle-arc-wallet";
 import { MANDATE_ABI } from "./chain.js";
+import { preflightCall } from "./executor.js";
 
 const lower = (value) => value.toLowerCase();
 
@@ -48,8 +49,9 @@ export function verifyMandateEvents(receipt, mandate, plannedCall) {
 }
 
 export class AomiMandateExecutor {
-  constructor({ cfg, log }) {
+  constructor({ cfg, pub, log }) {
     this.cfg = cfg;
+    this.pub = pub;
     this.log = log;
     this.wallet = new CircleArcWallet({
       walletAddress: cfg.aomi.walletAddress,
@@ -103,6 +105,14 @@ export class AomiMandateExecutor {
     for (let index = 0; index < artifact.calls.length; index += 1) {
       const outer = artifact.calls[index];
       const inner = calls[index];
+      const preflight = await preflightCall({
+        pub: this.pub,
+        account: this.wallet.walletAddress,
+        snap,
+        call: inner,
+        log: this.log,
+      });
+      if (!preflight.ok) return { ok: false, results: [...results, preflight.result] };
       const circle = await this.wallet.executeContractCall({
         chainId: this.cfg.chainId,
         to: outer.to,
