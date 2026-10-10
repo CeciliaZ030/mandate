@@ -7,6 +7,7 @@ import {
 } from "viem";
 import { mandateCalls, verifyMandateEvents } from "../src/aomi.js";
 import { MANDATE_ABI } from "../src/chain.js";
+import { preflightCall } from "../src/executor.js";
 
 const mandate = "0x1111111111111111111111111111111111111111";
 const target = "0x2222222222222222222222222222222222222222";
@@ -46,4 +47,28 @@ test("requires the exact Executed event and rejects breach evidence", () => {
     () => verifyMandateEvents({ logs: [executed, breach] }, mandate, inner),
     /Breach or CallReverted/,
   );
+});
+
+test("keeps Mandate's existing preflight as the final gate before Circle execution", async () => {
+  const calls = [];
+  const result = await preflightCall({
+    pub: {
+      simulateContract: async (request) => {
+        calls.push(request);
+        return { result: false };
+      },
+      call: async () => {
+        throw new Error("venue refused");
+      },
+    },
+    account: "0x3333333333333333333333333333333333333333",
+    snap: { mandate },
+    call: inner,
+    log: () => {},
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.result.status, "PREFLIGHT_BLOCKED");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].account, "0x3333333333333333333333333333333333333333");
+  assert.deepEqual(calls[0].args, [target, inner.data]);
 });

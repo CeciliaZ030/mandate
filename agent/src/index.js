@@ -42,7 +42,7 @@ const readPayables = () => {
 
 const account = cfg.aomi.enabled ? { address: cfg.aomi.walletAddress } : await loadAccount(cfg);
 const { pub, wallet } = clients(cfg, cfg.aomi.enabled ? null : account);
-const aomi = cfg.aomi.enabled ? new AomiMandateExecutor({ cfg, log }) : null;
+const aomi = cfg.aomi.enabled ? new AomiMandateExecutor({ cfg, pub, log }) : null;
 const indexer = new Indexer({ pub, cfg, log });
 const known = (a) => indexer.db.mandates.some((x) => x.toLowerCase() === a.toLowerCase());
 // a bill can only be stored for an account our factory created (re-index once for a brand-new one)
