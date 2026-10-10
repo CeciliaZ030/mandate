@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@circle-fin/earn-kit": "1.8.1",
-    "arc-canteen": "github:aomi-labs/arc-canteen#4c140b095278b534a981100c59207cb99122b5cd",
+    "arc-canteen": "github:aomi-labs/arc-canteen#041d7c3b1594561d8dfd23c8a3dbf6e2f82e6eba",
     "ethers": "^6.13.0",
     "viem": "^2.21.0"
   }

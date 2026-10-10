@@ -132,7 +132,6 @@ export class AomiMandateExecutor {
       const receipt = await verifyArcCallReceipt(
         confirmed.transactionHash,
         this.cfg.rpcUrl,
-        { to: outer.to, valueWei: outer.value, data: outer.data },
       );
       const executed = verifyMandateEvents(receipt, snap.mandate, inner);
       results.push({
