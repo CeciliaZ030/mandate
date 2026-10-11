@@ -13,7 +13,6 @@ import { Indexer } from "./indexer.js";
 import { startServer } from "./server.js";
 import { Bills } from "./bills.js";
 import { CircleVaults } from "./circle.js";
-import { AomiMandateExecutor } from "./aomi.js";
 
 const cfg = config();
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -42,7 +41,9 @@ const readPayables = () => {
 
 const account = cfg.aomi.enabled ? { address: cfg.aomi.walletAddress } : await loadAccount(cfg);
 const { pub, wallet } = clients(cfg, cfg.aomi.enabled ? null : account);
-const aomi = cfg.aomi.enabled ? new AomiMandateExecutor({ cfg, pub, log }) : null;
+const aomi = cfg.aomi.enabled
+  ? new (await import("./aomi.js")).AomiMandateExecutor({ cfg, pub, log })
+  : null;
 const indexer = new Indexer({ pub, cfg, log });
 const known = (a) => indexer.db.mandates.some((x) => x.toLowerCase() === a.toLowerCase());
 // a bill can only be stored for an account our factory created (re-index once for a brand-new one)
