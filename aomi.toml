@@ -2,4 +2,4 @@
 name = "mandate"
 display_name = "Mandate Treasury Agent"
 public = true
-server_tags = ["staging"]
+server_tags = ["prod"]

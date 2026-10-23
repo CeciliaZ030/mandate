@@ -17,7 +17,7 @@ The live reference account is `0xEa08f2195ae9f29079a4cb6aFB05238949576d57` on Ar
 1. Merge this branch into `Makabeez/Mandate` and push a clean commit. Keep `Cargo.toml` and `aomi.toml` at the repository root; Aomi Build discovers the App from those files.
 2. Open [build.aomi.dev](https://build.aomi.dev) and sign in with GitHub.
 3. Install the Aomi GitHub App when prompted and grant it access to `Makabeez/Mandate` only. In **Projects**, create or import a project from that repository and select the branch containing this App.
-4. Confirm that the detected App is `mandate` / **Mandate Treasury Agent**. Leave the source root as the repository root (`/`). The checked-in manifest currently targets the `staging` runtime for acceptance testing.
+4. Confirm that the detected App is `mandate` / **Mandate Treasury Agent**. Leave the source root as the repository root (`/`). The checked-in manifest targets the `prod` runtime (`server_tags = ["prod"]`, confirmed by aomi).
 5. Add the one required App secret:
 
    ```text
@@ -43,4 +43,4 @@ The live reference account is `0xEa08f2195ae9f29079a4cb6aFB05238949576d57` on Ar
 - **Circle Agent Wallet:** configured in the Mandate agent deployment; it signs permitted contract calls and never exposes its credentials to Aomi.
 - **MandateAccount:** the Arc contract that enforces the final venue, receiver, cap, loss, drawdown, and expiry rules.
 
-For an update, push a new commit, redeploy the same Build project, activate the new release, and keep the same Application ID. If Build reports an SDK mismatch, use the exact SDK version it requests rather than widening the `aomi-sdk` dependency. Production promotion is a separate commit that broadens `server_tags`; keep `staging` for the initial acceptance run.
+For an update, push a new commit, redeploy the same Build project, activate the new release, and keep the same Application ID. If Build reports an SDK mismatch, use the exact SDK version it requests rather than widening the `aomi-sdk` dependency.
